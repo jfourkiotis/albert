@@ -33,9 +33,9 @@ backends are shown in the following table:
 | Arrays      | :heavy_check_mark: | :heavy_check_mark: |
 | Functions   | :heavy_check_mark: | :heavy_check_mark: |
 | Closures    | :heavy_check_mark: | :heavy_check_mark: |
-| Hash Tables |        :X:         |         :X:        |
-| Builtins    |        :X:         |         :X:        |
-| Power `^` op| :heavy_check_mark: | :heavy_check_mark: |
-| Macros      |        :X:         |         :X:        |
+| Hash Tables | :heavy_multiplication_x: |  :heavy_multiplication_x: |
+| Builtins    | :heavy_multiplication_x: |  :heavy_multiplication_x: |
+| Power `^` op|    :heavy_check_mark:    |     :heavy_check_mark:    |
+| Macros      | :heavy_multiplication_x: |  :heavy_multiplication_x: |
   
 
