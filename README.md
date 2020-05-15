@@ -1,36 +1,41 @@
 # albert
-`Albert` is an interpreter for the `Monkey` programming language written in `Rust`
+`Albert` is an interpreter for the `Monkey` programming language and written in `Rust`. The source code is based on the 
+code described in the following two books:
+* [Writing an Interpreter in Go](https://interpreterbook.com/)
+* [Writing a Compiler in Go](https://compilerbook.com/)
 
-## Description
-The supported data types are the following:
-1. integers, e.g
-```
-let x = 5;
-let y = -20;
-```
-2. the booleans `true` and `false`, e.g
-```
-let condition = true;
-```
-3. string literals enclosed in `"`, e.g
-```
-let name = "Bill";
-```
-4. function literals, e.g
-```
-let fib = fn(n) { if (n < 2) { n } else { fib(n-1) + fib(n-2) }};
-```
-5. array literals, e.g
-```
-let a = [1, 2, "hello", "world", [4, 2], fn(n) { n + 1}];
+The original source code is in `Go`.
+
+### usage
+There are two backends implemented. The first one, is a classic _tree-walking_ interpreter that can be invoked by 
+using the command:
+```shell script
+repl -b tw path/to/scriptfile
 ```
 
-### operators
-There are two kind of operators in `Albert`, infix and prefix. 
-### prefix
-The prefix operators are two, `!` and `-`. The former accepts integers and booleans as operands, where the later accepts only integers. 
-### infix
-The infix operators are of two kinds - arithmetic and relational. The arithmetic operators are the usual left associative `+,-,/` and `*`, plus the power operator `^` which is right associative. The operands of the arithmetic operators must be integers. The relational operators are `<,>,!=` and `==`. The first two (`<,>`) can be applied only to integers, where the last two (`==, !=`) can be applied to integer, boolean and string literals.
+The second backend is a bytecode compiler that can be invoked by using the command:
+```shell script
+repl -b vm path/to/scriptfile
+```
 
-### builtins 
-There is only one built in function, `len` which works for strings and arrays and returns the number of characters and elements respectively. 
+If a script file is not give, both of these commands will load the `REPL`. 
+
+There is actually a third backend implemented, `vmd` that dumps the bytecode of a given script. 
+
+### features
+Not all features of the original `Monkey` language are implemented. Those implemented for the two supported 
+backends are shown in the following table:
+
+| feature     |        `tw`        |         `vm`       |
+| ----------- | ------------------ | ------------------ |
+| Numbers     | :heavy_check_mark: | :heavy_check_mark: |
+| Strings     | :heavy_check_mark: | :heavy_check_mark: |
+| Arrays      | :heavy_check_mark: | :heavy_check_mark: |
+| Functions   | :heavy_check_mark: | :heavy_check_mark: |
+| Closures    | :heavy_check_mark: | :heavy_check_mark: |
+| Hash Tables |        :X:         |         :X:        |
+| Builtins    |        :X:         |         :X:        |
+| Power `^` op| :heavy_check_mark: | :heavy_check_mark: |
+| Macros      |        :X:         |         :X:        |
+  
+
