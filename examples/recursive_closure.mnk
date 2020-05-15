@@ -1,0 +1,7 @@
+let countDown = fn(x) {
+	if (x == 0) {
+		return 0;
+	} else {
+		countDown(x - 1);
+	}
+};

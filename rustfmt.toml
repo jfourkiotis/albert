@@ -1,0 +1,4 @@
+edition = "2018"
+fn_args_layout = "Compressed"
+max_width = 100
+merge_imports = true

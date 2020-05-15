@@ -1,0 +1,1 @@
+let foo = fn(a, b) { a + b + 2 }; foo(4, 5);
