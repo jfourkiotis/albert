@@ -168,7 +168,7 @@ impl<'a> Vm<'a> {
 
             let op = self.current_opcode();
             *self.current_ip_mut() += 1;
-            let op = if cfg!(debug_assertios) {
+            let op = if cfg!(debug_assertion) {
                 BYTE_TO_OPCODE[op as usize]
             } else {
                 unsafe { *BYTE_TO_OPCODE.get_unchecked(op as usize) }
@@ -996,7 +996,11 @@ mod tests {
             let mut globals = vec![Constant::Int(0); GLOBALS_SIZE];
             let vm = Vm::for_bytecode(bytecode, &mut globals);
             let (stack_top, _) = vm.run().unwrap();
-            assert_eq!(test.1, stack_top, "unexpected value: {} (expected: {}) (test #{})", stack_top, test.1, i);
+            assert_eq!(
+                test.1, stack_top,
+                "unexpected value: {} (expected: {}) (test #{})",
+                stack_top, test.1, i
+            );
         }
     }
 }

@@ -1,0 +1,53 @@
+diff --git a/.gitignore b/.gitignore
+index fadda8f..1523a06 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -10,3 +10,5 @@ Cargo.lock
+ **/*.rs.bk
+ # CLion
+ .idea/
++# history
++history.txt
+diff --git a/vm/src/lib.rs b/vm/src/lib.rs
+index 97e9780..74eb9d1 100644
+--- a/vm/src/lib.rs
++++ b/vm/src/lib.rs
+@@ -168,7 +168,7 @@ impl<'a> Vm<'a> {
+ 
+             let op = self.current_opcode();
+             *self.current_ip_mut() += 1;
+-            let op = if cfg!(debug_assertios) {
++            let op = if cfg!(debug_assertions) {
+                 BYTE_TO_OPCODE[op as usize]
+             } else {
+                 unsafe { *BYTE_TO_OPCODE.get_unchecked(op as usize) }
+@@ -986,6 +986,29 @@ mod tests {
+         run_vm_tests(&tests);
+     }
+ 
++    //#[ignore]
++    #[test]
++    fn fib_in_cps_works() {
++        let tests = [
++            T("
++                let fib = fn(n, C) {
++                    if (n < 2) {
++                        n
++                    } else {
++                        fib(n - 1, fn(lhs) {
++                            fib(n - 2, fn(rhs) {
++                                C(lhs + rhs)
++                            })
++                        })
++                    }
++                };
++                fib(33, fn(n) { n });
++            ", Constant::Int(3524578)
++            )
++        ];
++        run_vm_tests(&tests);
++    }
++
+     fn run_vm_tests(tests: &[T]) {
+         for (i, test) in tests.iter().enumerate() {
+             let lexer = Lexer::new(test.0);
