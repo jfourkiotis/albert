@@ -482,6 +482,13 @@ impl<'a> Vm<'a> {
         }
     }
 
+    #[cfg(debug_assertions)]
+    #[inline(always)]
+    fn current_frame(&self) -> &Frame {
+        &self.frames[self.frame_index]
+    }
+
+    #[cfg(not(debug_assertions))]
     #[inline(always)]
     fn current_frame(&self) -> &Frame {
         &self.frames[self.frame_index]
@@ -514,11 +521,22 @@ impl<'a> Vm<'a> {
         unsafe { self.frames.get_unchecked(self.frame_index).len }
     }
 
+    #[cfg(debug_assertions)]
     #[inline(always)]
     fn current_closure(&self) -> &Closure {
         &self.closures[self.current_frame().ci]
     }
 
+    #[cfg(not(debug_assertions))]
+    #[inline(always)]
+    fn current_closure(&self) -> &Closure {
+        unsafe {
+            let frame = &self.frames.get_unchecked(self.frame_index);
+            &self.closures.get_unchecked(frame.ci)
+        }
+    }
+
+    #[cfg(debug_assertions)]
     #[inline(always)]
     fn current_function(&self) -> &CompiledFunction {
         &self.functions[self.current_closure().cfunc]
