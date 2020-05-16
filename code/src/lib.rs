@@ -92,11 +92,6 @@ pub fn make_instruction(op: OpCode, operands: &[usize]) -> Result<Vec<u8>, Strin
     Ok(instruction)
 }
 
-// Instructions ?
-// Instruction ?
-// Bytecode
-//
-
 // Metadata about OpCodes
 // .0: instruction name (e.g for Constant -> CONSTANT )
 // .1: operand widths
