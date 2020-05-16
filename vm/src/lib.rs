@@ -996,13 +996,7 @@ mod tests {
             let mut globals = vec![Constant::Int(0); GLOBALS_SIZE];
             let vm = Vm::for_bytecode(bytecode, &mut globals);
             let (stack_top, _) = vm.run().unwrap();
-            assert!(
-                test.1 == stack_top,
-                "unexpected value: {} (expected: {}) (test #{})",
-                stack_top,
-                test.1,
-                i,
-            );
+            assert_eq!(test.1, stack_top, "unexpected value: {} (expected: {}) (test #{})", stack_top, test.1, i);
         }
     }
 }
