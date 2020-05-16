@@ -109,7 +109,7 @@ fn start_vmd(input: Option<PathBuf>, show_elapsed_time: bool) -> Result<(), Box<
 }
 
 // `run_frontend` is used by all backends
-fn run_frontend<'a>(input: &'a str) -> Result<(Program<'a>, VarResolution), Vec<String>> {
+fn run_frontend(input: &str) -> Result<(Program, VarResolution), Vec<String>> {
     let lexer = Lexer::new(input);
     let parser = Parser::new(lexer);
     match parser.parse_program() {
