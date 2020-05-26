@@ -10,3 +10,5 @@ Cargo.lock
 **/*.rs.bk
 # CLion
 .idea/
+# readline
+history.txt
