@@ -166,7 +166,7 @@ impl<'a> Lexer<'a> {
                 }
             }
             c => {
-                if (c as char).is_alphabetic() {
+                if self.char_can_start_identifier(c) {
                     let identifier = self.read_identifier();
                     tok = Token {
                         token_type: *token::KEYWORDS.get(identifier).unwrap_or(&TokenType::Ident),
@@ -215,7 +215,7 @@ impl<'a> Lexer<'a> {
     fn read_identifier(&mut self) -> &'a str {
         let position = self.position;
         let mut c = self.ch as char;
-        while c.is_alphabetic() || c == '_' {
+        while self.is_valid_identifier_char(c) {
             self.read_char();
             c = self.ch as char;
         }
@@ -251,6 +251,15 @@ impl<'a> Lexer<'a> {
             c = self.ch as char;
         }
     }
+
+    fn char_can_start_identifier(&self, letter: char) -> bool {
+        letter.is_alphabetic() || letter == '_'
+    }
+
+    fn is_valid_identifier_char(&self, letter: char) -> bool {
+        self.char_can_start_identifier(letter) || letter.is_digit(10)
+    }
+
 }
 
 impl<'a> Iterator for Lexer<'a> {
@@ -295,6 +304,9 @@ mod tests {
 
         "foo bar"
         [1, 2];
+
+        hello_world
+        pi314 _12a
         "#;
 
         struct Test(TokenType, &'static str);
@@ -385,6 +397,9 @@ mod tests {
             t(TokenType::Int, "2"),
             t(TokenType::Rbracket, "]"),
             t(TokenType::Semicolon, ";"),
+            t(TokenType::Ident, "hello_world"),
+            t(TokenType::Ident, "pi314"),
+            t(TokenType::Ident, "_12a"),
             t(TokenType::Eof, ""),
         ];
 
