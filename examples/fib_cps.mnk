@@ -1,0 +1,12 @@
+let fib = fn(n, C) {
+	if (n < 2) {
+		C(n)
+	} else {
+		fib(n - 1, fn(lhs) {
+				fib(n - 2, fn(rhs) {
+						C(lhs + rhs)
+						})
+				})
+	}
+};
+fib(11, fn(n) { n });
