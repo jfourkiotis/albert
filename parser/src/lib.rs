@@ -60,7 +60,6 @@ pub struct Parser<'a> {
     statements: Vec<Statement<'a>>,
     errors: Vec<String>,
     // used as a placeholder for the current let AST
-    var_name: Option<&'a str>,
 }
 
 impl<'a> Parser<'a> {
@@ -72,7 +71,6 @@ impl<'a> Parser<'a> {
             nodes: vec![],
             statements: vec![],
             errors: vec![],
-            var_name: None,
         };
 
         // read two tokens so current_token and peek_token are both set:
@@ -134,9 +132,7 @@ impl<'a> Parser<'a> {
 
         self.expect_peek(TokenType::Assign)?;
         let current = self.next_token_or_error("Unexpected EOF".to_string())?;
-        let old_var_name = self.var_name.replace(clone.literal);
-        let value = self.parse_expression(current, Precedence::Lowest as i32)?;
-        self.var_name = old_var_name;
+        let value = self.parse_expression(current, Precedence::Lowest as i32, Some(clone.literal))?;
         self.expect_peek(TokenType::Semicolon)?;
 
         let name = self.register_node(identifier);
@@ -152,7 +148,7 @@ impl<'a> Parser<'a> {
     fn parse_return_statement(&mut self, token: Token<'a>) -> Result<StmtId, String> {
         let current = self.next_token_or_error("Unexpected EOF".to_string())?;
         let return_value = if current.token_type != TokenType::Semicolon {
-            let val = self.parse_expression(current, Precedence::Lowest as i32)?;
+            let val = self.parse_expression(current, Precedence::Lowest as i32, None)?;
             self.expect_peek(TokenType::Semicolon)?;
             Some(val)
         } else {
@@ -181,7 +177,7 @@ impl<'a> Parser<'a> {
         } else {
             let tmp = Statement::Expression {
                 token: tok,
-                expression: Some(self.parse_expression(expr_tok, Precedence::Lowest as i32)?),
+                expression: Some(self.parse_expression(expr_tok, Precedence::Lowest as i32, None)?),
             };
 
             // we allow expression statements without a semicolon if and only if
@@ -199,7 +195,7 @@ impl<'a> Parser<'a> {
         token_type == TokenType::Bang || token_type == TokenType::Minus
     }
 
-    fn parse_expression(&mut self, tok: Token<'a>, prec: i32) -> Result<ExprId, String> {
+    fn parse_expression(&mut self, tok: Token<'a>, prec: i32, named: Option<&'a str>) -> Result<ExprId, String> {
         let mut left;
         if tok.token_type == TokenType::Ident {
             left = self.parse_identifier(tok)?;
@@ -218,7 +214,7 @@ impl<'a> Parser<'a> {
         } else if self.is_prefix_operator(tok.token_type) {
             left = self.parse_prefix_expression(tok)?;
         } else if tok.token_type == TokenType::Function {
-            left = self.parse_function_literal(tok)?;
+            left = self.parse_function_literal(tok, named)?;
         } else {
             return Err(format!("invalid prefix token {}", tok.literal));
         }
@@ -248,7 +244,7 @@ impl<'a> Parser<'a> {
         if !self.peek_token_is(TokenType::Rbracket) {
             loop {
                 let arg = self.next_token_or_error("Unexpected EOF".to_string())?;
-                let argid = self.parse_expression(arg, Precedence::Lowest as i32)?;
+                let argid = self.parse_expression(arg, Precedence::Lowest as i32, None)?;
                 elements.push(argid);
                 if self.peek_token_is(TokenType::Comma) {
                     self.next_token();
@@ -279,7 +275,7 @@ impl<'a> Parser<'a> {
         &mut self, array: ExprId, token: Token<'a>,
     ) -> Result<ExprId, String> {
         let index_expr_token = self.next_token_or_error("Unexpected EOF".to_string())?;
-        let index = self.parse_expression(index_expr_token, Precedence::Lowest as i32)?;
+        let index = self.parse_expression(index_expr_token, Precedence::Lowest as i32, None)?;
         self.expect_peek(TokenType::Rbracket)?;
         Ok(self.register_node(Node::Index {
             token,
@@ -294,7 +290,7 @@ impl<'a> Parser<'a> {
         if !self.peek_token_is(TokenType::Rparen) {
             loop {
                 let arg = self.next_token_or_error("Unexpected EOF".to_string())?;
-                let argid = self.parse_expression(arg, Precedence::Lowest as i32)?;
+                let argid = self.parse_expression(arg, Precedence::Lowest as i32, None)?;
                 arguments.push(argid);
                 if self.peek_token_is(TokenType::Comma) {
                     self.next_token();
@@ -309,7 +305,7 @@ impl<'a> Parser<'a> {
         Ok(arguments)
     }
 
-    fn parse_function_literal(&mut self, token: Token<'a>) -> Result<ExprId, String> {
+    fn parse_function_literal(&mut self, token: Token<'a>, named: Option<&'a str>) -> Result<ExprId, String> {
         let lparen = self.expect_peek(TokenType::Lparen)?;
         let parameters = self.parse_function_parameters(lparen)?;
         let lbrace = self.expect_peek(TokenType::Lbrace)?;
@@ -318,7 +314,7 @@ impl<'a> Parser<'a> {
             token,
             parameters,
             body,
-            name: self.var_name.unwrap_or(""),
+            name: named.unwrap_or(""),
         };
         Ok(self.register_node(f))
     }
@@ -352,7 +348,7 @@ impl<'a> Parser<'a> {
         self.expect_peek(TokenType::Lparen)?;
 
         let current = self.next_token_or_error("Unexpected EOF".to_string())?;
-        let condition = self.parse_expression(current, Precedence::Lowest as i32)?;
+        let condition = self.parse_expression(current, Precedence::Lowest as i32, None)?;
         self.expect_peek(TokenType::Rparen)?;
         let lbrace = self.expect_peek(TokenType::Lbrace)?;
         let consequence = self.parse_block_statement(lbrace)?;
@@ -392,7 +388,7 @@ impl<'a> Parser<'a> {
 
     fn parse_grouped_expression(&mut self, _tok: Token<'a>) -> Result<ExprId, String> {
         let current = self.next_token_or_error("Unexpected EOF".to_string())?;
-        let expr_id = self.parse_expression(current, Precedence::Lowest as i32)?;
+        let expr_id = self.parse_expression(current, Precedence::Lowest as i32, None)?;
         self.expect_peek(TokenType::Rparen)?;
         Ok(expr_id)
     }
@@ -400,7 +396,7 @@ impl<'a> Parser<'a> {
     fn parse_prefix_expression(&mut self, tok: Token<'a>) -> Result<ExprId, String> {
         let current = self.next_token_or_error("Unexpected EOF".to_string())?;
 
-        let expr_id = self.parse_expression(current, Precedence::Prefix as i32)?;
+        let expr_id = self.parse_expression(current, Precedence::Prefix as i32, None)?;
         //FIXME: we create a dummy copy of our token because we need to initialize
         //two struct members with the same token, something that I cannot find a way
         //to do in Rust. I think I'll just remove the `token` member from each AST
@@ -426,7 +422,7 @@ impl<'a> Parser<'a> {
         let tmp = Token { ..infix_tok };
         let current = self.next_token_or_error("Unexpected EOF".to_string())?;
 
-        let right = self.parse_expression(current, precedence)?;
+        let right = self.parse_expression(current, precedence, None)?;
         let expression = Node::Infix {
             token: infix_tok,
             left,
