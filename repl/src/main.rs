@@ -1,4 +1,3 @@
-use utils::FrontendError;
 use ast::Program;
 use compiler::{Compiler, Constant};
 use eval::Interpreter;
@@ -11,6 +10,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::Instant;
+use utils::FrontendError;
 use vm::{Vm, GLOBALS_SIZE};
 
 use colored::*;
@@ -207,7 +207,12 @@ fn repl<B: FnMut(Program, VarResolution, bool)>(
                         for e in errors.iter() {
                             println!("{}: {}", "error".red(), e.message);
                             println!("{}", line);
-                            let caret = String::from_utf8(vec![b' '; e.offset-1]).unwrap();
+                            let pos = if e.offset == 0 {
+                                line.len() - 1
+                            } else {
+                                e.offset - 1
+                            };
+                            let caret = String::from_utf8(vec![b' '; pos]).unwrap();
                             println!("{}{}", caret, "^".green());
                         }
                     }
