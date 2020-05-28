@@ -450,9 +450,13 @@ mod tests {
             .unwrap_or_else(|_err| panic!("errors encountered during parsing"));
 
         let resolver = Resolver::default();
-        let resolved = resolver.resolve_program(&prog)?;
-        let mut interpreter = Interpreter::new(resolved);
-        interpreter.eval_program(&prog, Rc::new(RefCell::new(Default::default())))
+        match resolver.resolve_program(&prog) {
+            Ok(resolved) => {
+                let mut interpreter = Interpreter::new(resolved);
+                interpreter.eval_program(&prog, Rc::new(RefCell::new(Default::default())))
+            }
+            Err(error) => panic!("{}", error.message),
+        }
     }
 
     fn test_eval(input: &str) -> Value {

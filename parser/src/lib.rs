@@ -2,6 +2,7 @@ use ast::*;
 use lexer::Lexer;
 use std::collections::HashMap;
 use token::*;
+use utils::FrontendError;
 
 #[repr(i32)]
 #[derive(Debug, Copy, Clone)]
@@ -58,7 +59,7 @@ pub struct Parser<'a> {
     peek_token: Option<Token<'a>>,
     nodes: Vec<Node<'a>>,
     statements: Vec<Statement<'a>>,
-    errors: Vec<String>,
+    errors: Vec<FrontendError>,
     // used as a placeholder for the current let AST
 }
 
@@ -81,7 +82,7 @@ impl<'a> Parser<'a> {
 
     /// parse_program consumes the parser and returns the parsed AST and all
     /// errors encountered.
-    pub fn parse_program(mut self) -> Result<Program<'a>, Vec<String>> {
+    pub fn parse_program(mut self) -> Result<Program<'a>, Vec<FrontendError>> {
         let mut statements: Vec<StmtId> = vec![];
         while let Some(tok) = self.current_token.take() {
             match self.parse_statement(tok) {
@@ -102,7 +103,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_statement(&mut self, tok: Token<'a>) -> Result<StmtId, String> {
+    fn parse_statement(&mut self, tok: Token<'a>) -> Result<StmtId, FrontendError> {
         if tok.token_type == TokenType::Let {
             self.parse_let_statement(tok)
         } else if tok.token_type == TokenType::Return {
@@ -122,7 +123,7 @@ impl<'a> Parser<'a> {
         self.statements.len() - 1
     }
 
-    fn parse_let_statement(&mut self, let_tok: Token<'a>) -> Result<StmtId, String> {
+    fn parse_let_statement(&mut self, let_tok: Token<'a>) -> Result<StmtId, FrontendError> {
         let token = self.expect_peek(TokenType::Ident)?;
         let clone = Token { ..token };
         let identifier = Node::Identifier {
@@ -145,7 +146,7 @@ impl<'a> Parser<'a> {
         Ok(self.register_statement(let_stmt))
     }
 
-    fn parse_return_statement(&mut self, token: Token<'a>) -> Result<StmtId, String> {
+    fn parse_return_statement(&mut self, token: Token<'a>) -> Result<StmtId, FrontendError> {
         let current = self.next_token_or_error("Unexpected EOF".to_string())?;
         let return_value = if current.token_type != TokenType::Semicolon {
             let val = self.parse_expression(current, Precedence::Lowest as i32, None)?;
@@ -163,10 +164,12 @@ impl<'a> Parser<'a> {
         Ok(self.register_statement(ret_stmt))
     }
 
-    fn parse_expression_statement(&mut self, expr_tok: Token<'a>) -> Result<StmtId, String> {
+    fn parse_expression_statement(&mut self, expr_tok: Token<'a>) -> Result<StmtId, FrontendError> {
         let tok = Token {
             token_type: expr_tok.token_type,
             literal: expr_tok.literal,
+            line: expr_tok.line,
+            offset: expr_tok.offset,
         };
 
         let stmt = if expr_tok.token_type == TokenType::Semicolon {
@@ -195,7 +198,7 @@ impl<'a> Parser<'a> {
         token_type == TokenType::Bang || token_type == TokenType::Minus
     }
 
-    fn parse_expression(&mut self, tok: Token<'a>, prec: i32, named: Option<&'a str>) -> Result<ExprId, String> {
+    fn parse_expression(&mut self, tok: Token<'a>, prec: i32, named: Option<&'a str>) -> Result<ExprId, FrontendError> {
         let mut left;
         if tok.token_type == TokenType::Ident {
             left = self.parse_identifier(tok)?;
@@ -216,7 +219,11 @@ impl<'a> Parser<'a> {
         } else if tok.token_type == TokenType::Function {
             left = self.parse_function_literal(tok, named)?;
         } else {
-            return Err(format!("invalid prefix token {}", tok.literal));
+            return Err(FrontendError {
+                message: format!("invalid prefix token {}", tok.literal),
+                line: tok.line,
+                offset: tok.offset,
+            });
         }
 
         while !self.peek_token_is(TokenType::Semicolon) && prec < self.peek_precedence() {
@@ -232,13 +239,13 @@ impl<'a> Parser<'a> {
         Ok(left)
     }
 
-    fn parse_array_literal(&mut self, token: Token<'a>) -> Result<ExprId, String> {
+    fn parse_array_literal(&mut self, token: Token<'a>) -> Result<ExprId, FrontendError> {
         let elements = self.parse_array_elements()?;
         let array = Node::Array { token, elements };
         Ok(self.register_node(array))
     }
 
-    fn parse_array_elements(&mut self) -> Result<Vec<ExprId>, String> {
+    fn parse_array_elements(&mut self) -> Result<Vec<ExprId>, FrontendError> {
         let mut elements: Vec<ExprId> = vec![];
 
         if !self.peek_token_is(TokenType::Rbracket) {
@@ -261,7 +268,7 @@ impl<'a> Parser<'a> {
 
     fn parse_call_expression(
         &mut self, function: ExprId, token: Token<'a>,
-    ) -> Result<ExprId, String> {
+    ) -> Result<ExprId, FrontendError> {
         let arguments = self.parse_call_arguments()?;
         let call = Node::Call {
             token,
@@ -273,7 +280,7 @@ impl<'a> Parser<'a> {
 
     fn parse_index_expression(
         &mut self, array: ExprId, token: Token<'a>,
-    ) -> Result<ExprId, String> {
+    ) -> Result<ExprId, FrontendError> {
         let index_expr_token = self.next_token_or_error("Unexpected EOF".to_string())?;
         let index = self.parse_expression(index_expr_token, Precedence::Lowest as i32, None)?;
         self.expect_peek(TokenType::Rbracket)?;
@@ -284,7 +291,7 @@ impl<'a> Parser<'a> {
         }))
     }
 
-    fn parse_call_arguments(&mut self) -> Result<Vec<ExprId>, String> {
+    fn parse_call_arguments(&mut self) -> Result<Vec<ExprId>, FrontendError> {
         let mut arguments: Vec<ExprId> = vec![];
 
         if !self.peek_token_is(TokenType::Rparen) {
@@ -305,7 +312,7 @@ impl<'a> Parser<'a> {
         Ok(arguments)
     }
 
-    fn parse_function_literal(&mut self, token: Token<'a>, named: Option<&'a str>) -> Result<ExprId, String> {
+    fn parse_function_literal(&mut self, token: Token<'a>, named: Option<&'a str>) -> Result<ExprId, FrontendError> {
         let lparen = self.expect_peek(TokenType::Lparen)?;
         let parameters = self.parse_function_parameters(lparen)?;
         let lbrace = self.expect_peek(TokenType::Lbrace)?;
@@ -319,7 +326,7 @@ impl<'a> Parser<'a> {
         Ok(self.register_node(f))
     }
 
-    fn parse_function_parameters(&mut self, _tok: Token<'a>) -> Result<Vec<ExprId>, String> {
+    fn parse_function_parameters(&mut self, _tok: Token<'a>) -> Result<Vec<ExprId>, FrontendError> {
         let mut parameters: Vec<ExprId> = vec![];
 
         if !self.peek_token_is(TokenType::Rparen) {
@@ -344,7 +351,7 @@ impl<'a> Parser<'a> {
         Ok(parameters)
     }
 
-    fn parse_if_expression(&mut self, tok: Token<'a>) -> Result<ExprId, String> {
+    fn parse_if_expression(&mut self, tok: Token<'a>) -> Result<ExprId, FrontendError> {
         self.expect_peek(TokenType::Lparen)?;
 
         let current = self.next_token_or_error("Unexpected EOF".to_string())?;
@@ -370,7 +377,7 @@ impl<'a> Parser<'a> {
         Ok(self.register_node(expr))
     }
 
-    fn parse_block_statement(&mut self, lbrace: Token<'a>) -> Result<ExprId, String> {
+    fn parse_block_statement(&mut self, lbrace: Token<'a>) -> Result<ExprId, FrontendError> {
         let mut statements: Vec<StmtId> = vec![];
         loop {
             let current = self.next_token_or_error("Unexpected EOF".to_string())?;
@@ -386,14 +393,14 @@ impl<'a> Parser<'a> {
         Ok(self.register_statement(block))
     }
 
-    fn parse_grouped_expression(&mut self, _tok: Token<'a>) -> Result<ExprId, String> {
+    fn parse_grouped_expression(&mut self, _tok: Token<'a>) -> Result<ExprId, FrontendError> {
         let current = self.next_token_or_error("Unexpected EOF".to_string())?;
         let expr_id = self.parse_expression(current, Precedence::Lowest as i32, None)?;
         self.expect_peek(TokenType::Rparen)?;
         Ok(expr_id)
     }
 
-    fn parse_prefix_expression(&mut self, tok: Token<'a>) -> Result<ExprId, String> {
+    fn parse_prefix_expression(&mut self, tok: Token<'a>) -> Result<ExprId, FrontendError> {
         let current = self.next_token_or_error("Unexpected EOF".to_string())?;
 
         let expr_id = self.parse_expression(current, Precedence::Prefix as i32, None)?;
@@ -411,7 +418,7 @@ impl<'a> Parser<'a> {
 
     fn parse_infix_expression(
         &mut self, left: ExprId, infix_tok: Token<'a>,
-    ) -> Result<ExprId, String> {
+    ) -> Result<ExprId, FrontendError> {
         let mut precedence = self.token_precedence(infix_tok.token_type);
 
         // right assoc
@@ -444,7 +451,7 @@ impl<'a> Parser<'a> {
         *PRECEDENCES.get(&token_type).unwrap_or(&Precedence::Lowest) as i32
     }
 
-    fn parse_identifier(&mut self, token: Token<'a>) -> Result<ExprId, String> {
+    fn parse_identifier(&mut self, token: Token<'a>) -> Result<ExprId, FrontendError> {
         let clone = Token { ..token };
         let node = Node::Identifier {
             token,
@@ -453,16 +460,20 @@ impl<'a> Parser<'a> {
         Ok(self.register_node(node))
     }
 
-    fn parse_integer_literal(&mut self, token: Token<'a>) -> Result<ExprId, String> {
+    fn parse_integer_literal(&mut self, token: Token<'a>) -> Result<ExprId, FrontendError> {
         if let Ok(val) = token.literal.parse::<i64>() {
             let node = Node::Int { token, value: val };
             Ok(self.register_node(node))
         } else {
-            Err(format!("{} is not a valid integer", token.literal))
+            Err(FrontendError {
+                message: format!("{} is not a valid integer", token.literal),
+                line: token.line,
+                offset: token.offset,
+            })
         }
     }
 
-    fn parse_str_literal(&mut self, token: Token<'a>) -> Result<ExprId, String> {
+    fn parse_str_literal(&mut self, token: Token<'a>) -> Result<ExprId, FrontendError> {
         let clone = Token { ..token };
         Ok(self.register_node(Node::Str {
             token,
@@ -470,7 +481,7 @@ impl<'a> Parser<'a> {
         }))
     }
 
-    fn parse_boolean_literal(&mut self, token: Token<'a>) -> Result<ExprId, String> {
+    fn parse_boolean_literal(&mut self, token: Token<'a>) -> Result<ExprId, FrontendError> {
         let value = token.token_type == TokenType::True;
         let node = Node::Boolean { token, value };
         Ok(self.register_node(node))
@@ -481,9 +492,17 @@ impl<'a> Parser<'a> {
         self.peek_token = self.lexer.next();
     }
 
-    fn next_token_or_error(&mut self, msg: String) -> Result<Token<'a>, String> {
+    fn next_token_or_error(&mut self, msg: String) -> Result<Token<'a>, FrontendError> {
         self.next_token();
-        self.current_token.take().map_or(Err(msg), Ok)
+        match self.current_token.take() {
+            Some(tok) => Ok(tok),
+            None => Err(FrontendError {
+                message: msg,
+                line: 0,
+                offset: 0,
+            })
+        }
+        //self.current_token.take().map_or(Err(msg), Ok)
     }
 
     fn peek_token_is(&self, t: TokenType) -> bool {
@@ -492,17 +511,23 @@ impl<'a> Parser<'a> {
             .map_or(false, |tok| tok.token_type == t)
     }
 
-    fn peek_error(&mut self, t: TokenType) -> String {
-        format!(
-            "expected next token be {:?}, got {:?} instead",
-            t,
-            self.peek_token
-                .as_ref()
-                .map_or(TokenType::Illegal, |ref tok| tok.token_type)
-        )
+    fn peek_error(&mut self, t: TokenType) -> FrontendError {
+        let peek_tok = self.peek_token.as_ref();
+        match peek_tok {
+            Some(tok) => FrontendError {
+                message: format!("expected next token to be {:?}, but got {:?} instead", t, tok.token_type),
+                line: tok.line,
+                offset: tok.offset,
+            },
+            None => FrontendError {
+                message: format!("expected next token to be {:?}, but got EOF instead", t),
+                line: 0,
+                offset: 0,
+            }
+        }
     }
 
-    fn expect_peek(&mut self, t: TokenType) -> Result<Token<'a>, String> {
+    fn expect_peek(&mut self, t: TokenType) -> Result<Token<'a>, FrontendError> {
         if self.peek_token_is(t) {
             self.next_token();
             Ok(self.current_token.take().unwrap())
@@ -511,12 +536,16 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expect_peek_infix(&mut self) -> Result<Token<'a>, String> {
+    fn expect_peek_infix(&mut self) -> Result<Token<'a>, FrontendError> {
         let token = self.next_token_or_error("Unexpected EOF".to_string())?;
         if INFIX_OPERATORS.contains(&token.token_type) {
             Ok(token)
         } else {
-            Err(format!("expected infix operator, got '{}'", token.literal))
+            Err(FrontendError {
+                message: format!("expected infix operator, got '{}'", token.literal),
+                line: token.line,
+                offset: token.offset,
+            })
         }
     }
 }
@@ -1094,9 +1123,9 @@ mod tests {
         );
     }
 
-    fn check_parser_errors(errors: Vec<String>) {
-        for (_, msg) in errors.iter().enumerate() {
-            println!("parser error: {}", msg);
+    fn check_parser_errors(errors: Vec<FrontendError>) {
+        for (_, err) in errors.iter().enumerate() {
+            println!("parser error: {}", err.message);
         }
         assert_eq!(
             errors.is_empty(),

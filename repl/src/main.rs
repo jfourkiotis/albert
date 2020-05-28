@@ -1,3 +1,4 @@
+use utils::FrontendError;
 use ast::Program;
 use compiler::{Compiler, Constant};
 use eval::Interpreter;
@@ -109,7 +110,7 @@ fn start_vmd(input: Option<PathBuf>, show_elapsed_time: bool) -> Result<(), Box<
 }
 
 // `run_frontend` is used by all backends
-fn run_frontend(input: &str) -> Result<(Program, VarResolution), Vec<String>> {
+fn run_frontend(input: &str) -> Result<(Program, VarResolution), Vec<FrontendError>> {
     let lexer = Lexer::new(input);
     let parser = Parser::new(lexer);
     match parser.parse_program() {
@@ -204,7 +205,10 @@ fn repl<B: FnMut(Program, VarResolution, bool)>(
                 match run_frontend(&line[..]) {
                     Err(errors) => {
                         for e in errors.iter() {
-                            println!("{}: {}", "error".red(), *e);
+                            println!("{}: {}", "error".red(), e.message);
+                            println!("{}", line);
+                            let caret = String::from_utf8(vec![b' '; e.offset-1]).unwrap();
+                            println!("{}{}", caret, "^".green());
                         }
                     }
                     Ok((prog, res)) => backend(prog, res, show_elapsed_time),
@@ -236,7 +240,7 @@ fn exec_script<B: FnMut(Program, VarResolution, bool)>(
     match run_frontend(&code[..]) {
         Err(errors) => {
             for e in errors.iter() {
-                println!("{}: {}", "error".red(), *e);
+                println!("{}: {}", "error".red(), e.message);
             }
         }
         Ok((prog, res)) => run_backend(prog, res, show_elapsed_time),

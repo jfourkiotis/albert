@@ -299,6 +299,8 @@ mod tests {
             token: Token {
                 token_type: TokenType::Let,
                 literal: "let",
+                line: 0,
+                offset: 0,
             },
             name: 0,
             value: 1,
@@ -309,6 +311,8 @@ mod tests {
                 token: Token {
                     token_type: TokenType::Ident,
                     literal: "myVar",
+                    line: 0,
+                    offset: 0,
                 },
                 value: "myVar",
             },
@@ -316,6 +320,8 @@ mod tests {
                 token: Token {
                     token_type: TokenType::Ident,
                     literal: "anotherVar",
+                    line: 0,
+                    offset: 0,
                 },
                 value: "anotherVar",
             },

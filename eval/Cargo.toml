@@ -12,5 +12,6 @@ parser = { path = "../parser" }
 ast = { path = "../ast" }
 object = { path = "../object" }
 sema = { path = "../sema" }
+utils = { path = "../utils" }
 string-interner = "0.7"
 mimalloc = { version = "*", default-features = false }

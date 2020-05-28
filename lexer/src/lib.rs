@@ -10,6 +10,10 @@ pub struct Lexer<'a> {
     read_position: usize,
     // current byte under examination (at `position`)
     ch: u8,
+    // current line
+    line: usize,
+    // current line offset
+    line_offset: usize,
 }
 
 impl<'a> Lexer<'a> {
@@ -19,6 +23,8 @@ impl<'a> Lexer<'a> {
             position: 0,
             read_position: 0,
             ch: 0,
+            line: 1,
+            line_offset: 0,
         };
         // initialize lexer to a correct state
         lexer.read_char();
@@ -40,11 +46,15 @@ impl<'a> Lexer<'a> {
                     tok = Token {
                         token_type: TokenType::Equal,
                         literal: "==",
+                        line: self.line,
+                        offset: self.line_pos(),
                     }
                 } else {
                     tok = Token {
                         token_type: TokenType::Assign,
                         literal: "=",
+                        line: self.line,
+                        offset: self.line_pos(),
                     }
                 }
             }
@@ -52,12 +62,16 @@ impl<'a> Lexer<'a> {
                 tok = Token {
                     token_type: TokenType::Plus,
                     literal: "+",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             '-' => {
                 tok = Token {
                     token_type: TokenType::Minus,
                     literal: "-",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             '!' => {
@@ -67,11 +81,15 @@ impl<'a> Lexer<'a> {
                     tok = Token {
                         token_type: TokenType::NotEqual,
                         literal: "!=",
+                        line: self.line,
+                        offset: self.line_pos(),
                     }
                 } else {
                     tok = Token {
                         token_type: TokenType::Bang,
                         literal: "!",
+                        line: self.line,
+                        offset: self.line_pos(),
                     }
                 }
             }
@@ -79,111 +97,149 @@ impl<'a> Lexer<'a> {
                 tok = Token {
                     token_type: TokenType::Slash,
                     literal: "/",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             '*' => {
                 tok = Token {
                     token_type: TokenType::Asterisk,
                     literal: "*",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             '^' => {
                 tok = Token {
                     token_type: TokenType::Power,
                     literal: "^",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             '<' => {
                 tok = Token {
                     token_type: TokenType::LessThan,
                     literal: "<",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             '>' => {
                 tok = Token {
                     token_type: TokenType::GreaterThan,
                     literal: ">",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             ';' => {
                 tok = Token {
                     token_type: TokenType::Semicolon,
                     literal: ";",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             '(' => {
                 tok = Token {
                     token_type: TokenType::Lparen,
                     literal: "(",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             ')' => {
                 tok = Token {
                     token_type: TokenType::Rparen,
                     literal: ")",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             ',' => {
                 tok = Token {
                     token_type: TokenType::Comma,
                     literal: ",",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             '{' => {
                 tok = Token {
                     token_type: TokenType::Lbrace,
                     literal: "{",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             '}' => {
                 tok = Token {
                     token_type: TokenType::Rbrace,
                     literal: "}",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             '[' => {
                 tok = Token {
                     token_type: TokenType::Lbracket,
                     literal: "[",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             ']' => {
                 tok = Token {
                     token_type: TokenType::Rbracket,
                     literal: "]",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             '"' => {
                 tok = Token {
                     token_type: TokenType::Str,
                     literal: self.read_str(),
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             '\0' => {
                 tok = Token {
                     token_type: TokenType::Eof,
                     literal: "",
+                    line: self.line,
+                    offset: self.line_pos(),
                 }
             }
             c => {
                 if self.char_can_start_identifier(c) {
+                    let offset = self.line_pos();
                     let identifier = self.read_identifier();
                     tok = Token {
                         token_type: *token::KEYWORDS.get(identifier).unwrap_or(&TokenType::Ident),
                         literal: identifier,
+                        line: self.line,
+                        offset,
                     };
                     return tok;
-                } else if (c as char).is_digit(10) {
+                } else if c.is_digit(10) {
+                    let offset = self.line_pos();
                     let number = self.read_number();
                     tok = Token {
                         token_type: TokenType::Int,
                         literal: number,
+                        line: self.line,
+                        offset,
                     };
                     return tok;
                 } else {
                     tok = Token {
                         token_type: TokenType::Illegal,
                         literal: &self.input[self.position..=self.position],
+                        line: self.line,
+                        offset: self.line_pos(),
                     };
                 }
             }
@@ -247,6 +303,10 @@ impl<'a> Lexer<'a> {
     fn skip_whitespace(&mut self) {
         let mut c = self.ch as char;
         while c.is_ascii_whitespace() {
+            if c == '\n' {
+                self.line += 1;
+                self.line_offset = self.read_position;
+            }
             self.read_char();
             c = self.ch as char;
         }
@@ -260,6 +320,9 @@ impl<'a> Lexer<'a> {
         self.char_can_start_identifier(letter) || letter.is_digit(10)
     }
 
+    fn line_pos(&self) -> usize {
+        self.read_position - self.line_offset
+    }
 }
 
 impl<'a> Iterator for Lexer<'a> {
@@ -408,6 +471,29 @@ mod tests {
             let tok = lexer.next_token();
             assert_eq!(tok.token_type, test.0);
             assert_eq!(tok.literal, test.1);
+        }
+    }
+
+    #[test]
+    fn logging_token_line_and_offset_works() {
+        let input = r#"hello   4
+
+            [
+        "#;
+
+        struct Test(TokenType, usize, usize); // type, line, offset
+        let tests = [
+            Test(TokenType::Ident, 1, 1),
+            Test(TokenType::Int, 1, 9),
+            Test(TokenType::Lbracket, 3, 13),
+        ];
+
+        let mut lexer = Lexer::new(input);
+        for test in tests.iter() {
+            let tok = lexer.next_token();
+            assert_eq!(tok.token_type, test.0);
+            assert_eq!(tok.line, test.1, "unexpected token line");
+            assert_eq!(tok.offset, test.2, "unexpected token offset");
         }
     }
 }

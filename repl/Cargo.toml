@@ -17,6 +17,7 @@ sema = { path = "../sema" }
 code = { path = "../code" }
 compiler = { path = "../compiler" }
 vm = { path = "../vm" }
+utils = { path = "../utils" }
 whoami = "0.8"
 rustyline = "6.0.0"
 colored = "1.9"

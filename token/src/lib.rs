@@ -47,6 +47,8 @@ pub enum TokenType {
 pub struct Token<'a> {
     pub token_type: TokenType,
     pub literal: &'a str,
+    pub line: usize,
+    pub offset: usize,
 }
 
 #[macro_use]

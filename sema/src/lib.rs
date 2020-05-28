@@ -1,3 +1,4 @@
+use utils::FrontendError;
 use ast::*;
 use std::collections::HashMap;
 use string_interner::{DefaultStringInterner, Sym};
@@ -41,7 +42,7 @@ impl<'a> Resolver<'a> {
         self.in_func -= 1;
     }
 
-    pub fn resolve_program(mut self, prog: &Program) -> Result<VarResolution, String> {
+    pub fn resolve_program(mut self, prog: &Program) -> Result<VarResolution, FrontendError> {
         self.resolved
             .resize(prog.expr_nodes.len(), NameResolution::Unresolved);
         self.resolve_statements(&prog.statements, &prog.stmt_nodes, &prog.expr_nodes)
@@ -49,7 +50,7 @@ impl<'a> Resolver<'a> {
 
     fn resolve_statements(
         mut self, statements: &[StmtId], stmt_nodes: &[Statement<'a>], expr_nodes: &[Node<'a>],
-    ) -> Result<VarResolution, String> {
+    ) -> Result<VarResolution, FrontendError> {
         for (_, stmt) in statements.iter().enumerate() {
             self.resolve_statement(*stmt, stmt_nodes, expr_nodes)?;
         }
@@ -58,16 +59,20 @@ impl<'a> Resolver<'a> {
 
     fn resolve_statement(
         &mut self, stmt: StmtId, stmt_nodes: &[Statement<'a>], expr_nodes: &[Node<'a>],
-    ) -> Result<(), String> {
+    ) -> Result<(), FrontendError> {
         match &stmt_nodes[stmt] {
             Statement::Expression { expression, .. } => {
                 if let Some(expr_id) = expression {
                     self.resolve_expression(*expr_id, stmt_nodes, expr_nodes)?;
                 }
             }
-            Statement::Return { return_value, .. } => {
+            Statement::Return { return_value, token } => {
                 if self.in_func == 0 {
-                    return Err("'return' outside function".to_string());
+                    return Err(FrontendError{
+                        message: "'return' outside function".to_string(),
+                        line: token.line,
+                        offset: token.offset,
+                    });
                 } else if let Some(expr_id) = return_value {
                     self.resolve_expression(*expr_id, stmt_nodes, expr_nodes)?;
                 }
@@ -109,7 +114,7 @@ impl<'a> Resolver<'a> {
 
     fn resolve_expression(
         &mut self, expr: ExprId, stmt_nodes: &[Statement<'a>], expr_nodes: &[Node<'a>],
-    ) -> Result<(), String> {
+    ) -> Result<(), FrontendError> {
         match &expr_nodes[expr] {
             Node::Prefix { right, .. } => {
                 Ok(self.resolve_expression(*right, stmt_nodes, expr_nodes)?)
@@ -204,7 +209,7 @@ impl<'a> Resolver<'a> {
 
     fn resolve_block_statements(
         &mut self, statements: &[StmtId], stmt_nodes: &[Statement<'a>], expr_nodes: &[Node<'a>],
-    ) -> Result<(), String> {
+    ) -> Result<(), FrontendError> {
         for (_, stmt) in statements.iter().enumerate() {
             self.resolve_statement(*stmt, stmt_nodes, expr_nodes)?;
         }
