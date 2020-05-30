@@ -453,7 +453,7 @@ mod tests {
         match resolver.resolve_program(&prog) {
             Ok(resolved) => {
                 let mut interpreter = Interpreter::new(resolved);
-                interpreter.eval_program(&prog, Rc::new(RefCell::new(Default::default())))
+                interpreter.eval_program(&prog, Rc::new(RefCell::new(Env::new_global())))
             }
             Err(error) => panic!("{}", error.message),
         }

@@ -1,4 +1,5 @@
 use ast::Program;
+use object::env::Env;
 use compiler::{Compiler, Constant};
 use eval::Interpreter;
 use lexer::Lexer;
@@ -130,7 +131,7 @@ fn run_frontend(input: &str) -> Result<(Program, VarResolution), Vec<FrontendErr
 fn run_tw_backend(prog: Program, res: VarResolution, show_elapsed_time: bool) {
     let start = Instant::now();
     let mut interpreter = Interpreter::new(res);
-    match interpreter.eval_program(&prog, Rc::new(RefCell::new(Default::default()))) {
+    match interpreter.eval_program(&prog, Rc::new(RefCell::new(Env::new_global()))) {
         Err(rt_err) => println!("{}: {}", "runtime error".red(), rt_err),
         Ok(obj) => {
             println!("{}", obj);
