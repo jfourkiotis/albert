@@ -92,4 +92,13 @@ backends are shown in the following table:
 | Power `^` op|    :heavy_check_mark:    |     :heavy_check_mark:    |
 | Macros      | :heavy_multiplication_x: |  :heavy_multiplication_x: |
   
-
+### features scheduled for future versions
+| feature     |        version       |   status |
+| ----------- | -------------------- | -------- |
+| Better error messages     | `v0.2` | `master` |
+| Faster execution (`tw`)   | `v0.2` | `master` |
+| double-precision numbers instead of integers  | `v0.2` || 
+| `print` builtin           | `v0.2` || 
+| support for `while` loops | `v0.2` || 
+| a module system           | `v0.2` ||
+| macros                    | `v0.3` ||
