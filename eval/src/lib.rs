@@ -8,6 +8,14 @@ use std::convert::TryInto;
 use std::rc::Rc;
 use string_interner::Sym;
 
+const MAX_FRAMES: usize = 1024;
+const STACK_SIZE: usize = 2048;
+
+struct Frame<'a> {
+    name: &'a str,
+    base_pointer: usize,
+}
+
 pub struct Interpreter<'a> {
     rax: Option<Value<'a>>,
     pub(crate) nil: Value<'a>,
@@ -16,6 +24,10 @@ pub struct Interpreter<'a> {
     neg: Value<'a>, // false
     builtins: HashMap<&'static str, Value<'a>>,
     resolved: VarResolution,
+    frames: Vec<Frame<'a>>,
+    frame_index: usize,
+    stack: Vec<Value<'a>>,
+    sp: usize,
 }
 
 impl<'a> Interpreter<'a> {
@@ -28,7 +40,18 @@ impl<'a> Interpreter<'a> {
             neg: Object::False,
             builtins: HashMap::new(),
             resolved,
+            frames: vec![],
+            frame_index: 0,
+            stack: vec![],
+            sp: 0,
         };
+
+        // Only functions use frames, but we add a dummy frame for the main script file
+        obj.frames.resize_with(MAX_FRAMES, || Frame { name: "", base_pointer: 0 });
+        // The base pointer here means nothing, it will never be used.
+        obj.frames[0] = Frame { name: "main", base_pointer: 0 };
+        // the stack is only used by functions
+        obj.stack.resize_with(STACK_SIZE, || Object::Int(0));
 
         fn len<'a>(args: &[Value<'a>]) -> Result<Value<'a>, String> {
             if args.len() != 1 {
@@ -48,13 +71,18 @@ impl<'a> Interpreter<'a> {
 
         obj.builtins
             .insert("len", Object::Builtin(Rc::new(BuiltinDef("len", len))));
-
         obj
     }
     pub fn eval_program(
         &mut self, prog: &Program<'a>, env: Rc<RefCell<Env<'a>>>,
-    ) -> Result<Value<'a>, String> {
-        self.eval_statements(&prog.statements, &prog.stmt_nodes, &prog.expr_nodes, env)
+    ) -> Result<Value<'a>, RuntimeError> {
+         match self.eval_statements(&prog.statements, &prog.stmt_nodes, &prog.expr_nodes, env) {
+             Err(message) => {
+                 let stacktrace = self.frames[..=self.frame_index].iter().map(|f| f.name.to_string()).collect::<Vec<String>>();
+                 Err(RuntimeError { message, stacktrace })
+             },
+             Ok(r) => Ok(r)
+         }
     }
 
     fn eval_statements(
@@ -145,10 +173,16 @@ impl<'a> Interpreter<'a> {
                 }
             }
             Node::Identifier { value, .. } => match self.resolved[expr] {
-                NameResolution::Local { depth, index } => env
-                    .borrow()
-                    .get_local((depth, index))
-                    .ok_or_else(|| format!("unknown identifier: {}", value)),
+                NameResolution::Local { depth, index } => {
+                    if depth == 0 {
+                        Ok(self.stack[self.frames[self.frame_index].base_pointer + index].clone())
+                    } else {
+                        env
+                            .borrow()
+                            .get_local((depth, index))
+                            .ok_or_else(|| format!("unknown identifier: {}", value))
+                    }
+                },
                 NameResolution::Global { symbol } => self.eval_identifier(symbol, value, env),
                 NameResolution::Unresolved => panic!("unresolved variable {}", value),
             },
@@ -222,7 +256,7 @@ impl<'a> Interpreter<'a> {
                 match func {
                     Object::Func(fdef) => {
                         if let Node::Func {
-                            parameters, body, ..
+                            parameters, body, name, ..
                         } = &expr_nodes[fdef.0]
                         {
                             if arguments.len() != parameters.len() {
@@ -234,31 +268,19 @@ impl<'a> Interpreter<'a> {
                             } else {
                                 let args =
                                     self.eval_expressions(arguments, stmt_nodes, expr_nodes, env)?;
-                                let extended_env =
-                                    Rc::new(RefCell::new(Env::with_parent(fdef.1.clone())));
-                                for (param_id, arg) in parameters.iter().zip(args.into_iter()) {
-                                    if let Node::Identifier { value, .. } = &expr_nodes[*param_id] {
-                                        match self.resolved[*param_id] {
-                                            NameResolution::Local { depth, index } => extended_env
-                                                .borrow_mut()
-                                                .insert_local((depth, index), arg),
-                                            NameResolution::Global { symbol } => {
-                                                extended_env.borrow_mut().insert_global(symbol, arg)
-                                            }
-                                            NameResolution::Unresolved => {
-                                                panic!("unresolved variable {}", value)
-                                            }
-                                        };
-                                    } else {
-                                        unreachable!();
-                                    }
-                                }
+                                let num_args = args.len();
+                                self.stack[self.sp..self.sp + num_args].clone_from_slice(&args);
+                                self.sp += num_args;
+                                self.frame_index += 1;
+                                self.frames[self.frame_index] = Frame { name, base_pointer: self.sp - num_args };
                                 let result = self.eval_statement(
                                     *body,
                                     stmt_nodes,
                                     expr_nodes,
-                                    extended_env,
+                                    fdef.1.clone(),
                                 )?;
+                                self.sp = self.frames[self.frame_index].base_pointer;
+                                self.frame_index -= 1;
                                 if let Object::Return = &result {
                                     Ok(self.rax.take().map_or(self.nil.clone(), |r| r))
                                 } else {
@@ -442,7 +464,7 @@ mod tests {
 
     use super::*;
 
-    fn test_eval_or_error(input: &str) -> Result<Value, String> {
+    fn test_eval_or_error(input: &str) -> Result<Value, RuntimeError> {
         let lexer = Lexer::new(input);
         let parser = Parser::new(lexer);
         let prog = parser
@@ -462,7 +484,7 @@ mod tests {
     fn test_eval(input: &str) -> Value {
         match test_eval_or_error(input) {
             Ok(o) => o,
-            Err(msg) => panic!("{}", msg),
+            Err(e) => panic!("{}", e.message),
         }
     }
 
@@ -650,8 +672,8 @@ mod tests {
         ];
 
         for (_, test) in tests.iter().enumerate() {
-            if let Err(msg) = test_eval_or_error(test.0) {
-                assert!(msg == test.1, "expected: '{}', got: '{}'", test.1, msg);
+            if let Err(e) = test_eval_or_error(test.0) {
+                assert!(&e.message == test.1, "expected: '{}', got: '{}'", test.1, e.message);
             } else {
                 panic!("error expected!");
             }

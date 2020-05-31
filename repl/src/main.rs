@@ -132,7 +132,13 @@ fn run_tw_backend(prog: Program, res: VarResolution, show_elapsed_time: bool) {
     let start = Instant::now();
     let mut interpreter = Interpreter::new(res);
     match interpreter.eval_program(&prog, Rc::new(RefCell::new(Env::new_global()))) {
-        Err(rt_err) => println!("{}: {}", "runtime error".red(), rt_err),
+        Err(rt_err) => {
+            println!("{}: {}", "runtime error".red(), rt_err.message);
+            println!("{}", "stacktrace:".bright_blue());
+            for (i, info) in rt_err.stacktrace.iter().rev().enumerate() {
+                println!("{}. {}", i, info);
+            }
+        },
         Ok(obj) => {
             println!("{}", obj);
             if show_elapsed_time {
@@ -247,6 +253,17 @@ fn exec_script<B: FnMut(Program, VarResolution, bool)>(
         Err(errors) => {
             for e in errors.iter() {
                 println!("{}: {}", "error".red(), e.message);
+                if e.line != 0 {
+                    let src_line = code.lines().nth(e.line - 1).unwrap();
+                    println!("{}", src_line);
+                    let pos = if e.offset == 0 {
+                        src_line.len() - 1
+                    } else {
+                        e.offset - 1
+                    };
+                    let caret = String::from_utf8(vec![b' '; pos]).unwrap();
+                    println!("{}{}", caret, "^".green());
+                }
             }
         }
         Ok((prog, res)) => run_backend(prog, res, show_elapsed_time),

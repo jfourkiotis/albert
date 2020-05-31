@@ -11,8 +11,12 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 pub mod env;
 
-//pub type Value<'a> = Rc<Box<Object<'a>>>;
 pub type Value<'a> = Object<'a>;
+
+pub struct RuntimeError {
+    pub message: String,
+    pub stacktrace: Vec<String>,
+}
 
 // builtin signature
 type BuiltinFunc<'a> = fn(&[Value<'a>]) -> Result<Value<'a>, String>;
