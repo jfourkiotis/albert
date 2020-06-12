@@ -26,7 +26,7 @@ pub struct BuiltinDef<'a>(pub &'static str, pub BuiltinFunc<'a>);
 
 #[derive(Clone)]
 pub enum Object<'a> {
-    Int(i64),
+    Num(f64),
     Str(Rc<String>),
     True,
     False,
@@ -44,7 +44,7 @@ const OBJ_SIZE_CHECK: usize = (std::mem::size_of::<Object>() == 16) as usize - 1
 impl<'a> Object<'a> {
     pub fn type_name(&self) -> &'static str {
         match self {
-            Object::Int(_) => "INTEGER",
+            Object::Num(_) => "NUMBER",
             Object::Str(_) => "STRING",
             Object::True => "BOOLEAN",
             Object::False => "BOOLEAN",
@@ -60,7 +60,7 @@ impl<'a> Object<'a> {
 impl<'a> Display for Object<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Object::Int(v) => write!(f, "{}", v),
+            Object::Num(v) => write!(f, "{}", v),
             Object::Str(s) => write!(f, "{}", s),
             Object::True => write!(f, "true"),
             Object::False => write!(f, "false"),

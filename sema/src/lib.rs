@@ -189,7 +189,7 @@ impl<'a> Resolver<'a> {
                 self.resolve_expression(*array, stmt_nodes, expr_nodes)?;
                 self.resolve_expression(*index, stmt_nodes, expr_nodes)
             }
-            Node::Int { .. } | Node::Str { .. } | Node::Boolean { .. } => Ok(()),
+            Node::Num { .. } | Node::Str { .. } | Node::Boolean { .. } => Ok(()),
         }
     }
 

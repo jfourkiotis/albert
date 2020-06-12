@@ -228,7 +228,7 @@ impl<'a> Lexer<'a> {
                     let offset = self.line_pos();
                     let number = self.read_number();
                     tok = Token {
-                        token_type: TokenType::Int,
+                        token_type: TokenType::Num,
                         literal: number,
                         line: self.line,
                         offset,
@@ -290,9 +290,22 @@ impl<'a> Lexer<'a> {
         &self.input[position..self.position]
     }
 
+    // accepted numbers:
+    // 1. integers
+    // 2. real numbers with a decimal
+    //  (b) 5. is also accepted
+    //
     fn read_number(&mut self) -> &'a str {
         let position = self.position;
         let mut c = self.ch as char;
+        while c.is_digit(10) {
+            self.read_char();
+            c = self.ch as char;
+        }
+        if c == '.' {
+            self.read_char();
+            c = self.ch as char;
+        }
         while c.is_digit(10) {
             self.read_char();
             c = self.ch as char;
@@ -370,6 +383,9 @@ mod tests {
 
         hello_world
         pi314 _12a
+
+        3.14
+            3.
         "#;
 
         struct Test(TokenType, &'static str);
@@ -379,12 +395,12 @@ mod tests {
             t(TokenType::Let, "let"),
             t(TokenType::Ident, "five"),
             t(TokenType::Assign, "="),
-            t(TokenType::Int, "5"),
+            t(TokenType::Num, "5"),
             t(TokenType::Semicolon, ";"),
             t(TokenType::Let, "let"),
             t(TokenType::Ident, "ten"),
             t(TokenType::Assign, "="),
-            t(TokenType::Int, "10"),
+            t(TokenType::Num, "10"),
             t(TokenType::Semicolon, ";"),
             t(TokenType::Let, "let"),
             t(TokenType::Ident, "add"),
@@ -416,21 +432,21 @@ mod tests {
             t(TokenType::Minus, "-"),
             t(TokenType::Slash, "/"),
             t(TokenType::Asterisk, "*"),
-            t(TokenType::Int, "5"),
+            t(TokenType::Num, "5"),
             t(TokenType::Semicolon, ";"),
-            t(TokenType::Int, "5"),
+            t(TokenType::Num, "5"),
             t(TokenType::LessThan, "<"),
-            t(TokenType::Int, "10"),
+            t(TokenType::Num, "10"),
             t(TokenType::GreaterThan, ">"),
-            t(TokenType::Int, "5"),
+            t(TokenType::Num, "5"),
             t(TokenType::Semicolon, ";"),
-            t(TokenType::Int, "10"),
+            t(TokenType::Num, "10"),
             t(TokenType::Equal, "=="),
-            t(TokenType::Int, "10"),
+            t(TokenType::Num, "10"),
             t(TokenType::Semicolon, ";"),
-            t(TokenType::Int, "10"),
+            t(TokenType::Num, "10"),
             t(TokenType::NotEqual, "!="),
-            t(TokenType::Int, "9"),
+            t(TokenType::Num, "9"),
             t(TokenType::Semicolon, ";"),
             t(TokenType::False, "false"),
             t(TokenType::Semicolon, ";"),
@@ -455,14 +471,16 @@ mod tests {
             t(TokenType::Str, "foobar"),
             t(TokenType::Str, "foo bar"),
             t(TokenType::Lbracket, "["),
-            t(TokenType::Int, "1"),
+            t(TokenType::Num, "1"),
             t(TokenType::Comma, ","),
-            t(TokenType::Int, "2"),
+            t(TokenType::Num, "2"),
             t(TokenType::Rbracket, "]"),
             t(TokenType::Semicolon, ";"),
             t(TokenType::Ident, "hello_world"),
             t(TokenType::Ident, "pi314"),
             t(TokenType::Ident, "_12a"),
+            t(TokenType::Num, "3.14"),
+            t(TokenType::Num, "3."),
             t(TokenType::Eof, ""),
         ];
 
@@ -484,7 +502,7 @@ mod tests {
         struct Test(TokenType, usize, usize); // type, line, offset
         let tests = [
             Test(TokenType::Ident, 1, 1),
-            Test(TokenType::Int, 1, 9),
+            Test(TokenType::Num, 1, 9),
             Test(TokenType::Lbracket, 3, 13),
         ];
 

@@ -133,7 +133,8 @@ impl<'a> Parser<'a> {
 
         self.expect_peek(TokenType::Assign)?;
         let current = self.next_token_or_error("Unexpected EOF".to_string())?;
-        let value = self.parse_expression(current, Precedence::Lowest as i32, Some(clone.literal))?;
+        let value =
+            self.parse_expression(current, Precedence::Lowest as i32, Some(clone.literal))?;
         self.expect_peek(TokenType::Semicolon)?;
 
         let name = self.register_node(identifier);
@@ -180,7 +181,11 @@ impl<'a> Parser<'a> {
         } else {
             let tmp = Statement::Expression {
                 token: tok,
-                expression: Some(self.parse_expression(expr_tok, Precedence::Lowest as i32, None)?),
+                expression: Some(self.parse_expression(
+                    expr_tok,
+                    Precedence::Lowest as i32,
+                    None,
+                )?),
             };
 
             // we allow expression statements without a semicolon if and only if
@@ -198,12 +203,14 @@ impl<'a> Parser<'a> {
         token_type == TokenType::Bang || token_type == TokenType::Minus
     }
 
-    fn parse_expression(&mut self, tok: Token<'a>, prec: i32, named: Option<&'a str>) -> Result<ExprId, FrontendError> {
+    fn parse_expression(
+        &mut self, tok: Token<'a>, prec: i32, named: Option<&'a str>,
+    ) -> Result<ExprId, FrontendError> {
         let mut left;
         if tok.token_type == TokenType::Ident {
             left = self.parse_identifier(tok)?;
-        } else if tok.token_type == TokenType::Int {
-            left = self.parse_integer_literal(tok)?;
+        } else if tok.token_type == TokenType::Num {
+            left = self.parse_number_literal(tok)?;
         } else if tok.token_type == TokenType::Str {
             left = self.parse_str_literal(tok)?;
         } else if tok.token_type == TokenType::True || tok.token_type == TokenType::False {
@@ -312,7 +319,9 @@ impl<'a> Parser<'a> {
         Ok(arguments)
     }
 
-    fn parse_function_literal(&mut self, token: Token<'a>, named: Option<&'a str>) -> Result<ExprId, FrontendError> {
+    fn parse_function_literal(
+        &mut self, token: Token<'a>, named: Option<&'a str>,
+    ) -> Result<ExprId, FrontendError> {
         let lparen = self.expect_peek(TokenType::Lparen)?;
         let parameters = self.parse_function_parameters(lparen)?;
         let lbrace = self.expect_peek(TokenType::Lbrace)?;
@@ -460,13 +469,13 @@ impl<'a> Parser<'a> {
         Ok(self.register_node(node))
     }
 
-    fn parse_integer_literal(&mut self, token: Token<'a>) -> Result<ExprId, FrontendError> {
-        if let Ok(val) = token.literal.parse::<i64>() {
-            let node = Node::Int { token, value: val };
+    fn parse_number_literal(&mut self, token: Token<'a>) -> Result<ExprId, FrontendError> {
+        if let Ok(val) = token.literal.parse::<f64>() {
+            let node = Node::Num { token, value: val };
             Ok(self.register_node(node))
         } else {
             Err(FrontendError {
-                message: format!("{} is not a valid integer", token.literal),
+                message: format!("{} is not a valid number", token.literal),
                 line: token.line,
                 offset: token.offset,
             })
@@ -500,7 +509,7 @@ impl<'a> Parser<'a> {
                 message: msg,
                 line: 0,
                 offset: 0,
-            })
+            }),
         }
         //self.current_token.take().map_or(Err(msg), Ok)
     }
@@ -515,7 +524,10 @@ impl<'a> Parser<'a> {
         let peek_tok = self.peek_token.as_ref();
         match peek_tok {
             Some(tok) => FrontendError {
-                message: format!("expected next token to be {:?}, but got {:?} instead", t, tok.token_type),
+                message: format!(
+                    "expected next token to be {:?}, but got {:?} instead",
+                    t, tok.token_type
+                ),
                 line: tok.line,
                 offset: tok.offset,
             },
@@ -523,7 +535,7 @@ impl<'a> Parser<'a> {
                 message: format!("expected next token to be {:?}, but got EOF instead", t),
                 line: 0,
                 offset: 0,
-            }
+            },
         }
     }
 
@@ -702,9 +714,9 @@ mod tests {
         } = parse_input(input);
         check_number_of_statements(3, statements.len());
 
-        struct Test(&'static str, i64);
+        struct Test(&'static str, f64);
         let t = Test;
-        let tests = [t("x", 5), t("y", 10), t("foobar", 838_383)];
+        let tests = [t("x", 5.0), t("y", 10.0), t("foobar", 838_383f64)];
 
         for (i, test) in tests.iter().enumerate() {
             let stmt_id = statements[i];
@@ -712,7 +724,7 @@ mod tests {
         }
     }
 
-    fn test_return_statement(stmt: &Statement, expected_value: Option<i64>, nodes: &[Node]) {
+    fn test_return_statement(stmt: &Statement, expected_value: Option<f64>, nodes: &[Node]) {
         match stmt {
             Statement::Return {
                 ref token,
@@ -727,7 +739,7 @@ mod tests {
                 if let Some(rvid) = return_value {
                     let rexpr = &nodes[*rvid];
                     assert!(
-                        matches!(rexpr, Node::Int { value, .. } if *value == expected_value.unwrap())
+                        matches!(rexpr, Node::Num { value, .. } if *value == expected_value.unwrap())
                     );
                 }
             }
@@ -746,9 +758,9 @@ mod tests {
         return 838383;
         ";
 
-        struct Test(Option<i64>);
+        struct Test(Option<f64>);
         let t = Test;
-        let tests = [t(Some(5)), t(Some(10)), t(None), t(Some(838_383))];
+        let tests = [t(Some(5.0)), t(Some(10.0)), t(None), t(Some(838_383f64))];
 
         let Program {
             statements,
@@ -854,8 +866,8 @@ mod tests {
     }
 
     #[test]
-    fn parse_integer_expression_works() {
-        test_literal_expression!("5;", Node::Int, 5);
+    fn parse_number_expression_works() {
+        test_literal_expression!("5;", Node::Num, 5.0);
     }
 
     #[test]
@@ -866,22 +878,22 @@ mod tests {
 
     #[test]
     fn parse_prefix_expression_works() {
-        test_prefix_expression!("!5;", "!", Node::Int, 5);
-        test_prefix_expression!("-5;", "-", Node::Int, 5);
+        test_prefix_expression!("!5;", "!", Node::Num, 5.0);
+        test_prefix_expression!("-5;", "-", Node::Num, 5.0);
         test_prefix_expression!("!true;", "!", Node::Boolean, true);
         test_prefix_expression!("!false;", "!", Node::Boolean, false);
     }
 
     #[test]
     fn parse_infix_expression_works() {
-        test_infix_input!("5 + 5;", Node::Int, 5, "+", Node::Int, 5);
-        test_infix_input!("5 - 5;", Node::Int, 5, "-", Node::Int, 5);
-        test_infix_input!("5 * 5;", Node::Int, 5, "*", Node::Int, 5);
-        test_infix_input!("5 / 5;", Node::Int, 5, "/", Node::Int, 5);
-        test_infix_input!("5 > 5;", Node::Int, 5, ">", Node::Int, 5);
-        test_infix_input!("5 < 5;", Node::Int, 5, "<", Node::Int, 5);
-        test_infix_input!("5 == 5;", Node::Int, 5, "==", Node::Int, 5);
-        test_infix_input!("5 != 5;", Node::Int, 5, "!=", Node::Int, 5);
+        test_infix_input!("5 + 5;", Node::Num, 5.0, "+", Node::Num, 5.0);
+        test_infix_input!("5 - 5;", Node::Num, 5.0, "-", Node::Num, 5.0);
+        test_infix_input!("5 * 5;", Node::Num, 5.0, "*", Node::Num, 5.0);
+        test_infix_input!("5 / 5;", Node::Num, 5.0, "/", Node::Num, 5.0);
+        test_infix_input!("5 > 5;", Node::Num, 5.0, ">", Node::Num, 5.0);
+        test_infix_input!("5 < 5;", Node::Num, 5.0, "<", Node::Num, 5.0);
+        test_infix_input!("5 == 5;", Node::Num, 5.0, "==", Node::Num, 5.0);
+        test_infix_input!("5 != 5;", Node::Num, 5.0, "!=", Node::Num, 5.0);
         test_infix_input!(
             "true == true;",
             Node::Boolean,
@@ -987,24 +999,24 @@ mod tests {
                         3,
                         elements.len()
                     );
-                    test_literal!(Node::Int, &expr_nodes[elements[0]], 1);
+                    test_literal!(Node::Num, &expr_nodes[elements[0]], 1.0);
                     test_infix_expression!(
                         elements[1],
                         expr_nodes,
-                        Node::Int,
-                        2,
+                        Node::Num,
+                        2.0,
                         "*",
-                        Node::Int,
-                        2
+                        Node::Num,
+                        2.0
                     );
                     test_infix_expression!(
                         elements[2],
                         expr_nodes,
-                        Node::Int,
-                        3,
+                        Node::Num,
+                        3.0,
                         "+",
-                        Node::Int,
-                        3
+                        Node::Num,
+                        3.0
                     );
                 }
                 _other => panic!("expected Node::Array literal"),
@@ -1035,7 +1047,7 @@ mod tests {
                 } => {
                     test_literal!(Node::Identifier, &expr_nodes[*function], "add");
                     assert_eq!(3, arguments.len());
-                    test_literal!(Node::Int, &expr_nodes[arguments[0]], 1);
+                    test_literal!(Node::Num, &expr_nodes[arguments[0]], 1.0);
                     // we cannot use test_infix_expression! here, because it expects a
                     // semicolon after each expression, so, let's do it manually:
                     match &expr_nodes[arguments[1]] {
@@ -1045,9 +1057,9 @@ mod tests {
                             right,
                             ..
                         } => {
-                            test_literal!(Node::Int, &expr_nodes[*left], 2);
+                            test_literal!(Node::Num, &expr_nodes[*left], 2.0);
                             assert_eq!(&"*", operator);
-                            test_literal!(Node::Int, &expr_nodes[*right], 3);
+                            test_literal!(Node::Num, &expr_nodes[*right], 3.0);
                         }
                         _other => panic!("expected infix expression: 2 * 3"),
                     }
@@ -1059,9 +1071,9 @@ mod tests {
                             right,
                             ..
                         } => {
-                            test_literal!(Node::Int, &expr_nodes[*left], 4);
+                            test_literal!(Node::Num, &expr_nodes[*left], 4.0);
                             assert_eq!(&"+", operator);
-                            test_literal!(Node::Int, &expr_nodes[*right], 5);
+                            test_literal!(Node::Num, &expr_nodes[*right], 5.0);
                         }
                         _other => panic!("expected infix expression: 4 + 5"),
                     }
@@ -1082,7 +1094,7 @@ mod tests {
     }
 
     fn test_let_statement(
-        s: &Statement, expected_name: &'static str, expected_value: i64, nodes: &[Node],
+        s: &Statement, expected_name: &'static str, expected_value: f64, nodes: &[Node],
     ) {
         match s {
             Statement::Let {
@@ -1106,7 +1118,7 @@ mod tests {
 
                 assert!(matches!(
                     &nodes[*value],
-                    Node::Int {
+                    Node::Num {
                         value, ..
                     } if *value == expected_value
                 ));

@@ -8,7 +8,7 @@ pub use symbol_table::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 pub enum Constant {
-    Int(i64),
+    Num(f64),
     Str(usize), // an interned string
     True,
     False,
@@ -21,7 +21,7 @@ pub enum Constant {
 impl std::fmt::Display for Constant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Constant::Int(v) => write!(f, "{}", v),
+            Constant::Num(v) => write!(f, "{}", v),
             Constant::Str(s) => write!(f, "string({:?})", s),
             Constant::True => write!(f, "true"),
             Constant::False => write!(f, "false"),
@@ -36,7 +36,7 @@ impl std::fmt::Display for Constant {
 impl Constant {
     pub fn type_name(self) -> &'static str {
         match self {
-            Constant::Int(_) => "INTEGER",
+            Constant::Num(_) => "NUMBER",
             Constant::Str(_) => "STRING",
             Constant::True => "BOOLEAN",
             Constant::False => "BOOLEAN",
@@ -291,7 +291,7 @@ impl<'a> Compiler<'a> {
                 let after_alternative_pos = current_scope!(self).instructions.len();
                 self.change_operand(jump_pos, after_alternative_pos)
             }
-            Node::Int { value, .. } => {
+            Node::Num { value, .. } => {
                 let index = self.add_constant(*value);
                 self.emit(OpCode::Constant, &[index])?;
                 Ok(())
@@ -415,8 +415,8 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn add_constant(&mut self, number: i64) -> usize {
-        self.constants.push(Constant::Int(number));
+    fn add_constant(&mut self, number: f64) -> usize {
+        self.constants.push(Constant::Num(number));
         self.constants.len() - 1
     }
 
@@ -775,7 +775,7 @@ mod tests {
             },
             T {
                 input: "-1;",
-                expected_constants: vec![Constant::Int(1)],
+                expected_constants: vec![Constant::Num(1f64)],
                 expected_instructions: instructions! {
                     Constant!(0), Minus!(), Pop!()
                 },
@@ -783,7 +783,7 @@ mod tests {
             },
             T {
                 input: "1 > 2;",
-                expected_constants: vec![Constant::Int(1), Constant::Int(2)],
+                expected_constants: vec![Constant::Num(1f64), Constant::Num(2f64)],
                 expected_instructions: instructions! {
                     Constant!(0), Constant!(1), GreaterThan!(), Pop!()
                 },
@@ -791,7 +791,7 @@ mod tests {
             },
             T {
                 input: "1 < 2;",
-                expected_constants: vec![Constant::Int(1), Constant::Int(2)],
+                expected_constants: vec![Constant::Num(1f64), Constant::Num(2f64)],
                 expected_instructions: instructions! {
                     Constant!(0), Constant!(1), LessThan!(), Pop!()
                 },
@@ -799,7 +799,7 @@ mod tests {
             },
             T {
                 input: "1 == 2;",
-                expected_constants: vec![Constant::Int(1), Constant::Int(2)],
+                expected_constants: vec![Constant::Num(1f64), Constant::Num(2f64)],
                 expected_instructions: instructions! {
                     Constant!(0), Constant!(1), Equal!(), Pop!()
                 },
@@ -807,7 +807,7 @@ mod tests {
             },
             T {
                 input: "1 != 2;",
-                expected_constants: vec![Constant::Int(1), Constant::Int(2)],
+                expected_constants: vec![Constant::Num(1f64), Constant::Num(2f64)],
                 expected_instructions: instructions! {
                     Constant!(0), Constant!(1), NotEqual!(), Pop!()
                 },
@@ -815,7 +815,7 @@ mod tests {
             },
             T {
                 input: "1 ^ 2;",
-                expected_constants: vec![Constant::Int(1), Constant::Int(2)],
+                expected_constants: vec![Constant::Num(1f64), Constant::Num(2f64)],
                 expected_instructions: instructions! {
                     Constant!(0), Constant!(1), Pow!(), Pop!()
                 },
@@ -823,7 +823,7 @@ mod tests {
             },
             T {
                 input: "1 + 2;",
-                expected_constants: vec![Constant::Int(1), Constant::Int(2)],
+                expected_constants: vec![Constant::Num(1f64), Constant::Num(2f64)],
                 expected_instructions: instructions! {
                     Constant!(0), Constant!(1), Add!(), Pop!()
                 },
@@ -831,7 +831,7 @@ mod tests {
             },
             T {
                 input: "1 - 2;",
-                expected_constants: vec![Constant::Int(1), Constant::Int(2)],
+                expected_constants: vec![Constant::Num(1f64), Constant::Num(2f64)],
                 expected_instructions: instructions! {
                     Constant!(0), Constant!(1), Sub!(), Pop!()
                 },
@@ -839,7 +839,7 @@ mod tests {
             },
             T {
                 input: "1 * 2;",
-                expected_constants: vec![Constant::Int(1), Constant::Int(2)],
+                expected_constants: vec![Constant::Num(1f64), Constant::Num(2f64)],
                 expected_instructions: instructions! {
                     Constant!(0), Constant!(1), Mul!(), Pop!()
                 },
@@ -847,7 +847,7 @@ mod tests {
             },
             T {
                 input: "2 / 1;",
-                expected_constants: vec![Constant::Int(2), Constant::Int(1)],
+                expected_constants: vec![Constant::Num(2f64), Constant::Num(1f64)],
                 expected_instructions: instructions! {
                     Constant!(0), Constant!(1), Div!(), Pop!()
                 },
@@ -855,7 +855,7 @@ mod tests {
             },
             T {
                 input: "1; 2;",
-                expected_constants: vec![Constant::Int(1), Constant::Int(2)],
+                expected_constants: vec![Constant::Num(1f64), Constant::Num(2f64)],
                 expected_instructions: instructions! {
                     Constant!(0), Pop!(), Constant!(1), Pop!()
                 },
@@ -892,7 +892,7 @@ mod tests {
         let tests = [
             T {
                 input: "if (true) { 10 }; 3333;",
-                expected_constants: vec![Constant::Int(10), Constant::Int(3333)],
+                expected_constants: vec![Constant::Num(10f64), Constant::Num(3333f64)],
                 expected_instructions: instructions! {
                     True!(),
                     JumpIfFalse!(10),
@@ -907,7 +907,11 @@ mod tests {
             },
             T {
                 input: "if (true) { 10 } else { 20 }; 3333;",
-                expected_constants: vec![Constant::Int(10), Constant::Int(20), Constant::Int(3333)],
+                expected_constants: vec![
+                    Constant::Num(10f64),
+                    Constant::Num(20f64),
+                    Constant::Num(3333f64),
+                ],
                 expected_instructions: instructions! {
                     True!(),
                     JumpIfFalse!(10),
@@ -930,7 +934,7 @@ mod tests {
         let tests = [
             T {
                 input: "let one = 1; let two = 2;",
-                expected_constants: vec![Constant::Int(1), Constant::Int(2)],
+                expected_constants: vec![Constant::Num(1f64), Constant::Num(2f64)],
                 expected_instructions: instructions! {
                     Constant!(0), SetGlobal!(0), Constant!(1), SetGlobal!(1)
                 },
@@ -938,7 +942,7 @@ mod tests {
             },
             T {
                 input: "let one = 1; one;",
-                expected_constants: vec![Constant::Int(1)],
+                expected_constants: vec![Constant::Num(1f64)],
                 expected_instructions: instructions! {
                     Constant!(0), SetGlobal!(0), GetGlobal!(0), Pop!()
                 },
@@ -946,7 +950,7 @@ mod tests {
             },
             T {
                 input: "let one = 1; let two = one; two;",
-                expected_constants: vec![Constant::Int(1)],
+                expected_constants: vec![Constant::Num(1f64)],
                 expected_instructions: instructions! {
                     Constant!(0), SetGlobal!(0), GetGlobal!(0), SetGlobal!(1), GetGlobal!(1), Pop!()
                 },
@@ -994,7 +998,11 @@ mod tests {
             },
             T {
                 input: "[1, 2, 3];",
-                expected_constants: vec![Constant::Int(1), Constant::Int(2), Constant::Int(3)],
+                expected_constants: vec![
+                    Constant::Num(1f64),
+                    Constant::Num(2f64),
+                    Constant::Num(3f64),
+                ],
                 expected_instructions: instructions! {
                     Constant!(0), Constant!(1), Constant!(2), Array!(3), Pop!()
                 },
@@ -1003,12 +1011,12 @@ mod tests {
             T {
                 input: "[1 + 2, 3 - 4, 5 * 6];",
                 expected_constants: vec![
-                    Constant::Int(1),
-                    Constant::Int(2),
-                    Constant::Int(3),
-                    Constant::Int(4),
-                    Constant::Int(5),
-                    Constant::Int(6),
+                    Constant::Num(1f64),
+                    Constant::Num(2f64),
+                    Constant::Num(3f64),
+                    Constant::Num(4f64),
+                    Constant::Num(5f64),
+                    Constant::Num(6f64),
                 ],
                 expected_instructions: instructions! {
                     Constant!(0),
@@ -1035,7 +1043,7 @@ mod tests {
         let tests = [
             T {
                 input: "fn() { 20 }();",
-                expected_constants: vec![Constant::Int(20), Constant::Function(0)],
+                expected_constants: vec![Constant::Num(20f64), Constant::Function(0)],
                 expected_instructions: instructions! {
                     Closure!(1, 0),
                     Call!(0),
@@ -1049,7 +1057,7 @@ mod tests {
             },
             T {
                 input: "let noArg = fn() { 24 }; noArg();",
-                expected_constants: vec![Constant::Int(24), Constant::Function(0)],
+                expected_constants: vec![Constant::Num(24f64), Constant::Function(0)],
                 expected_instructions: instructions! {
                     Closure!(1, 0),
                     SetGlobal!(0),
@@ -1064,7 +1072,7 @@ mod tests {
             },
             T {
                 input: "let oneArg = fn(a) { a }; oneArg(24);",
-                expected_constants: vec![Constant::Function(0), Constant::Int(24)],
+                expected_constants: vec![Constant::Function(0), Constant::Num(24f64)],
                 expected_instructions: instructions! {
                     Closure!(0, 0),
                     SetGlobal!(0),
@@ -1083,9 +1091,9 @@ mod tests {
                 input: "let manyArg = fn(a, b, c) { a; b; c; }; manyArg(24, 25, 26);",
                 expected_constants: vec![
                     Constant::Function(0),
-                    Constant::Int(24),
-                    Constant::Int(25),
-                    Constant::Int(26),
+                    Constant::Num(24f64),
+                    Constant::Num(25f64),
+                    Constant::Num(26f64),
                 ],
                 expected_instructions: instructions! {
                     Closure!(0, 0),
@@ -1117,11 +1125,11 @@ mod tests {
             T {
                 input: "[1, 2, 3][1 + 1];",
                 expected_constants: vec![
-                    Constant::Int(1),
-                    Constant::Int(2),
-                    Constant::Int(3),
-                    Constant::Int(1),
-                    Constant::Int(1),
+                    Constant::Num(1f64),
+                    Constant::Num(2f64),
+                    Constant::Num(3f64),
+                    Constant::Num(1f64),
+                    Constant::Num(1f64),
                 ],
                 expected_instructions: instructions! {
                     Constant!(0),
@@ -1138,7 +1146,11 @@ mod tests {
             },
             T {
                 input: "[1,2][0];",
-                expected_constants: vec![Constant::Int(1), Constant::Int(2), Constant::Int(0)],
+                expected_constants: vec![
+                    Constant::Num(1f64),
+                    Constant::Num(2f64),
+                    Constant::Num(0f64),
+                ],
                 expected_instructions: instructions! {
                     Constant!(0),
                     Constant!(1),
@@ -1159,8 +1171,8 @@ mod tests {
             T {
                 input: "fn() { return 5 + 10; };",
                 expected_constants: vec![
-                    Constant::Int(5),
-                    Constant::Int(10),
+                    Constant::Num(5f64),
+                    Constant::Num(10f64),
                     Constant::Function(0),
                 ],
                 expected_instructions: instructions! {
@@ -1192,7 +1204,7 @@ mod tests {
         let tests = [
             T {
                 input: "let num = 55; fn() { num };",
-                expected_constants: vec![Constant::Int(55), Constant::Function(0)],
+                expected_constants: vec![Constant::Num(55f64), Constant::Function(0)],
                 expected_instructions: instructions! {
                     Constant!(0),
                     SetGlobal!(0),
@@ -1207,7 +1219,7 @@ mod tests {
             },
             T {
                 input: "fn() { let num = 55; num; };",
-                expected_constants: vec![Constant::Int(55), Constant::Function(0)],
+                expected_constants: vec![Constant::Num(55f64), Constant::Function(0)],
                 expected_instructions: instructions! {
                     Closure!(1, 0),
                     Pop!()
@@ -1223,8 +1235,8 @@ mod tests {
             T {
                 input: "fn() { let a = 55; let b = 77; a + b; };",
                 expected_constants: vec![
-                    Constant::Int(55),
-                    Constant::Int(77),
+                    Constant::Num(55f64),
+                    Constant::Num(77f64),
                     Constant::Function(0),
                 ],
                 expected_instructions: instructions! {
@@ -1253,7 +1265,11 @@ mod tests {
         let tests = [
             T {
                 input: "let countDown = fn(x) { countDown(x - 1); }; countDown(1);",
-                expected_constants: vec![Constant::Int(1), Constant::Function(0), Constant::Int(1)],
+                expected_constants: vec![
+                    Constant::Num(1f64),
+                    Constant::Function(0),
+                    Constant::Num(1f64),
+                ],
                 expected_instructions: instructions! {
                     Closure!(1, 0),
                     SetGlobal!(0),
@@ -1281,9 +1297,9 @@ mod tests {
                 wrapper();
                 ",
                 expected_constants: vec![
-                    Constant::Int(1),
+                    Constant::Num(1f64),
                     Constant::Function(0),
-                    Constant::Int(1),
+                    Constant::Num(1f64),
                     Constant::Function(1),
                 ],
                 expected_instructions: instructions! {
@@ -1410,10 +1426,10 @@ mod tests {
                 };
                 ",
                 expected_constants: vec![
-                    Constant::Int(55),
-                    Constant::Int(66),
-                    Constant::Int(77),
-                    Constant::Int(88),
+                    Constant::Num(55f64),
+                    Constant::Num(66f64),
+                    Constant::Num(77f64),
+                    Constant::Num(88f64),
                     Constant::Function(0),
                     Constant::Function(1),
                     Constant::Function(2),

@@ -7,7 +7,7 @@ pub enum TokenType {
     Eof,
     // Identifiers + literals
     Ident,
-    Int,
+    Num,
     Str,
     // Operators
     Assign,

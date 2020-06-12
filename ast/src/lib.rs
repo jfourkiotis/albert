@@ -31,9 +31,9 @@ pub enum Node<'a> {
         token: Token<'a>,
         value: &'a str,
     },
-    Int {
+    Num {
         token: Token<'a>,
-        value: i64,
+        value: f64,
     },
     Str {
         token: Token<'a>,
@@ -86,7 +86,7 @@ impl<'a> Node<'a> {
     pub fn token_literal(&self) -> &'a str {
         match *self {
             Node::Identifier { ref token, .. } => token.literal,
-            Node::Int { ref token, .. } => token.literal,
+            Node::Num { ref token, .. } => token.literal,
             Node::Str { ref token, .. } => token.literal,
             Node::Prefix { ref token, .. } => token.literal,
             Node::Infix { ref token, .. } => token.literal,
@@ -152,7 +152,7 @@ impl<'a> Program<'a> {
     ) -> Result<(), Error> {
         match &self.expr_nodes[expr_id] {
             Node::Identifier { value, .. } => write!(f, "{}", value)?,
-            Node::Int { value, .. } => write!(f, "{}", value)?,
+            Node::Num { value, .. } => write!(f, "{}", value)?,
             Node::Str { value, .. } => write!(f, "\"{}\"", value)?,
             Node::Prefix {
                 operator, right, ..

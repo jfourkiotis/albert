@@ -97,7 +97,7 @@ impl<'a> Vm<'a> {
             frame_index: 0,
         };
 
-        vm.stack.resize_with(STACK_SIZE, || Constant::Int(0));
+        vm.stack.resize_with(STACK_SIZE, || Constant::Num(0f64));
         vm.frames.resize_with(MAX_FRAMES, || Frame {
             ci: std::usize::MAX,
             ip: std::usize::MAX,
@@ -135,7 +135,7 @@ impl<'a> Vm<'a> {
 
     fn println(&self, val: &Constant) -> String {
         match val {
-            Constant::Int(v) => format!("{}", v),
+            Constant::Num(v) => format!("{}", v),
             Constant::True => "true".to_string(),
             Constant::False => "false".to_string(),
             Constant::Null => "null".to_string(),
@@ -186,8 +186,8 @@ impl<'a> Vm<'a> {
                     let left = pop!(self);
 
                     match (left, right) {
-                        (Constant::Int(v1), Constant::Int(v2)) => {
-                            push!(self, Constant::Int(v1 + v2));
+                        (Constant::Num(v1), Constant::Num(v2)) => {
+                            push!(self, Constant::Num(v1 + v2));
                         }
                         (Constant::Str(s1), Constant::Str(s2)) => {
                             let mut buffer = String::from(&self.strings[s1]);
@@ -202,8 +202,8 @@ impl<'a> Vm<'a> {
                     let right = pop!(self);
                     let left = pop!(self);
                     match (left, right) {
-                        (Constant::Int(v1), Constant::Int(v2)) => {
-                            push!(self, Constant::Int(v1 - v2));
+                        (Constant::Num(v1), Constant::Num(v2)) => {
+                            push!(self, Constant::Num(v1 - v2));
                         }
                         (a, b) => raise_operator_error!(a.type_name(), "-", b.type_name()),
                     }
@@ -212,8 +212,8 @@ impl<'a> Vm<'a> {
                     let right = pop!(self);
                     let left = pop!(self);
                     match (left, right) {
-                        (Constant::Int(v1), Constant::Int(v2)) => {
-                            push!(self, Constant::Int(v1 * v2));
+                        (Constant::Num(v1), Constant::Num(v2)) => {
+                            push!(self, Constant::Num(v1 * v2));
                         }
                         (a, b) => raise_operator_error!(a.type_name(), "*", b.type_name()),
                     }
@@ -222,8 +222,8 @@ impl<'a> Vm<'a> {
                     let right = pop!(self);
                     let left = pop!(self);
                     match (left, right) {
-                        (Constant::Int(v1), Constant::Int(v2)) => {
-                            push!(self, Constant::Int(v1 / v2));
+                        (Constant::Num(v1), Constant::Num(v2)) => {
+                            push!(self, Constant::Num(v1 / v2));
                         }
                         (a, b) => raise_operator_error!(a.type_name(), "/", b.type_name()),
                     }
@@ -232,16 +232,16 @@ impl<'a> Vm<'a> {
                     let right = pop!(self);
                     let left = pop!(self);
                     match (left, right) {
-                        (Constant::Int(v1), Constant::Int(v2)) => {
-                            push!(self, Constant::Int(v1.pow(v2.try_into().unwrap())));
+                        (Constant::Num(v1), Constant::Num(v2)) => {
+                            push!(self, Constant::Num(v1.powf(v2.try_into().unwrap())));
                         }
                         (a, b) => raise_operator_error!(a.type_name(), "^", b.type_name()),
                     }
                 }
                 OpCode::Minus => {
                     let right = pop!(self);
-                    if let Constant::Int(v) = right {
-                        push!(self, Constant::Int(-v));
+                    if let Constant::Num(v) = right {
+                        push!(self, Constant::Num(-v));
                     } else {
                         return Err(format!("unknown operator: -{}", right.type_name()));
                     }
@@ -360,8 +360,9 @@ impl<'a> Vm<'a> {
                     let left = pop!(self);
 
                     match (left, index) {
-                        (Constant::Array(a), Constant::Int(i)) => {
+                        (Constant::Array(a), Constant::Num(i)) => {
                             let array = &self.arrays[a];
+                            let i = i as i64;
                             if i < 0 {
                                 return Err(format!("array index cannot be negative: {}", i));
                             }
@@ -569,25 +570,25 @@ mod tests {
     struct T(&'static str, Constant);
 
     #[test]
-    fn integer_arithmetic_works() {
+    fn number_arithmetic_works() {
         let tests = [
-            T("1;", Constant::Int(1)),
-            T("2;", Constant::Int(2)),
-            T("1 + 2;", Constant::Int(3)),
-            T("1 - 2;", Constant::Int(-1)),
-            T("1 * 2;", Constant::Int(2)),
-            T("4 / 2;", Constant::Int(2)),
-            T("2 ^ 3 ^ 2;", Constant::Int(512)),
-            T("50 / 2 * 2 + 10 - 5;", Constant::Int(55)),
-            T("5 + 5 + 5 + 5 - 10;", Constant::Int(10)),
-            T("2 * 2 * 2 * 2 * 2;", Constant::Int(32)),
-            T("5 * 2 + 10;", Constant::Int(20)),
-            T("5 + 2 * 10;", Constant::Int(25)),
-            T("5 * (2 + 10);", Constant::Int(60)),
-            T("-5;", Constant::Int(-5)),
-            T("-10;", Constant::Int(-10)),
-            T("-50 + 100 + -50;", Constant::Int(0)),
-            T("(5 + 10 * 2 + 15 / 3) * 2 + -10;", Constant::Int(50)),
+            T("1;", Constant::Num(1f64)),
+            T("2;", Constant::Num(2f64)),
+            T("1 + 2;", Constant::Num(3f64)),
+            T("1 - 2;", Constant::Num(-1f64)),
+            T("1 * 2;", Constant::Num(2f64)),
+            T("4 / 2;", Constant::Num(2f64)),
+            T("2 ^ 3 ^ 2;", Constant::Num(512f64)),
+            T("50 / 2 * 2 + 10 - 5;", Constant::Num(55f64)),
+            T("5 + 5 + 5 + 5 - 10;", Constant::Num(10f64)),
+            T("2 * 2 * 2 * 2 * 2;", Constant::Num(32f64)),
+            T("5 * 2 + 10;", Constant::Num(20f64)),
+            T("5 + 2 * 10;", Constant::Num(25f64)),
+            T("5 * (2 + 10);", Constant::Num(60f64)),
+            T("-5;", Constant::Num(-5f64)),
+            T("-10;", Constant::Num(-10f64)),
+            T("-50 + 100 + -50;", Constant::Num(0f64)),
+            T("(5 + 10 * 2 + 15 / 3) * 2 + -10;", Constant::Num(50f64)),
         ];
 
         run_vm_tests(&tests);
@@ -633,13 +634,13 @@ mod tests {
     #[test]
     fn conditional_expressions_work() {
         let tests = [
-            T("if (true) { 10 };", Constant::Int(10)),
-            T("if (true) { 10 } else { 20 };", Constant::Int(10)),
-            T("if (false) { 10 } else { 20 }; ", Constant::Int(20)),
-            T("if (1) { 10 };", Constant::Int(10)),
-            T("if (1 < 2) { 10 };", Constant::Int(10)),
-            T("if (1 < 2) { 10 } else { 20 };", Constant::Int(10)),
-            T("if (1 > 2) { 10 } else { 20 };", Constant::Int(20)),
+            T("if (true) { 10 };", Constant::Num(10f64)),
+            T("if (true) { 10 } else { 20 };", Constant::Num(10f64)),
+            T("if (false) { 10 } else { 20 }; ", Constant::Num(20f64)),
+            T("if (1) { 10 };", Constant::Num(10f64)),
+            T("if (1 < 2) { 10 };", Constant::Num(10f64)),
+            T("if (1 < 2) { 10 } else { 20 };", Constant::Num(10f64)),
+            T("if (1 > 2) { 10 } else { 20 };", Constant::Num(20f64)),
             T("if (1 > 2) { 10 };", Constant::Null),
             T("if (false) { 10 };", Constant::Null),
         ];
@@ -650,11 +651,11 @@ mod tests {
     #[test]
     fn global_let_statements_work() {
         let tests = [
-            T("let one = 1; one;", Constant::Int(1)),
-            T("let one = 1; let two = 2; one + two;", Constant::Int(3)),
+            T("let one = 1; one;", Constant::Num(1f64)),
+            T("let one = 1; let two = 2; one + two;", Constant::Num(3f64)),
             T(
                 "let one = 1; let two = one + one; one + two;",
-                Constant::Int(3),
+                Constant::Num(3f64),
             ),
         ];
 
@@ -687,12 +688,12 @@ mod tests {
     #[test]
     fn index_expressions_work() {
         let tests = [
-            T("[1, 2, 3][1];", Constant::Int(2)),
-            T("[1, 2, 3][0 + 2];", Constant::Int(3)),
-            T("[[1, 1, 1]][0][0];", Constant::Int(1)),
+            T("[1, 2, 3][1];", Constant::Num(2f64)),
+            T("[1, 2, 3][0 + 2];", Constant::Num(3f64)),
+            T("[[1, 1, 1]][0][0];", Constant::Num(1f64)),
             T("[][0];", Constant::Null),
             T("[1, 2, 3][99];", Constant::Null),
-            T("[1][[0][0]];", Constant::Int(1)),
+            T("[1][[0][0]];", Constant::Num(1f64)),
         ];
 
         run_vm_tests(&tests);
@@ -703,23 +704,23 @@ mod tests {
         let tests = [
             T(
                 "let fivePlusTen = fn() { 5 + 10; }; fivePlusTen();",
-                Constant::Int(15),
+                Constant::Num(15f64),
             ),
             T(
                 "let one = fn() { 1; }; let two = fn() { 2; }; one() + two();",
-                Constant::Int(3),
+                Constant::Num(3f64),
             ),
             T(
                 "let a = fn() { 1 }; let b = fn() { a () + 1 }; let c = fn() { b() + 1 }; c();",
-                Constant::Int(3),
+                Constant::Num(3f64),
             ),
             T(
                 "let earlyExit = fn() { return 99; 100; }; earlyExit();",
-                Constant::Int(99),
+                Constant::Num(99f64),
             ),
             T(
                 "let earlyExit = fn() { return 99; return 100; }; earlyExit();",
-                Constant::Int(99),
+                Constant::Num(99f64),
             ),
         ];
 
@@ -750,7 +751,7 @@ mod tests {
                 let returnsOneReturner = fn() { returnsOne; };
                 returnsOneReturner()();
                 ",
-            Constant::Int(1),
+            Constant::Num(1f64),
         )];
 
         run_vm_tests(&tests);
@@ -761,11 +762,11 @@ mod tests {
         let tests = [
             T(
                 "let one = fn() { let one = 1; one; }; one();",
-                Constant::Int(1),
+                Constant::Num(1f64),
             ),
             T(
                 "let oneAndTwo = fn() { let one = 1; let two = 2; one + two; }; oneAndTwo();",
-                Constant::Int(3),
+                Constant::Num(3f64),
             ),
             T(
                 "
@@ -773,7 +774,7 @@ mod tests {
                 let threeAndFour = fn() { let three = 3; let four = 4; three + four;};
                 oneAndTwo() + threeAndFour();
                 ",
-                Constant::Int(10),
+                Constant::Num(10f64),
             ),
             T(
                 "
@@ -781,7 +782,7 @@ mod tests {
                 let secondFoobar = fn() { let foobar = 100; foobar; };
                 firstFoobar() + secondFoobar();
                 ",
-                Constant::Int(150),
+                Constant::Num(150f64),
             ),
             T(
                 "
@@ -796,7 +797,7 @@ mod tests {
                     };
                     minusOne() + minusTwo();
                 ",
-                Constant::Int(97),
+                Constant::Num(97f64),
             ),
         ];
 
@@ -811,14 +812,14 @@ mod tests {
                     let identity = fn(a) { a; };
                     identity(4);
                 ",
-                Constant::Int(4),
+                Constant::Num(4f64),
             ),
             T(
                 "
                     let sum = fn(a, b) { a + b; };
                     sum(1, 2);
                 ",
-                Constant::Int(3),
+                Constant::Num(3f64),
             ),
             T(
                 "
@@ -834,7 +835,7 @@ mod tests {
 
                     outer() + globalNum;
                 ",
-                Constant::Int(50),
+                Constant::Num(50f64),
             ),
         ];
 
@@ -866,7 +867,7 @@ mod tests {
             let prog = parser.parse_program().unwrap();
             let compiler = Compiler::default();
             let bytecode = compiler.compile_program(&prog).unwrap();
-            let mut globals = vec![Constant::Int(0); GLOBALS_SIZE];
+            let mut globals = vec![Constant::Num(0f64); GLOBALS_SIZE];
             let vm = Vm::for_bytecode(bytecode, &mut globals);
             let ret = vm.run();
             if let Err(s) = ret {
@@ -888,7 +889,7 @@ mod tests {
                 let closure = newClosure(99);
                 closure();
                 ",
-                Constant::Int(99),
+                Constant::Num(99f64),
             ),
             T(
                 "
@@ -898,7 +899,7 @@ mod tests {
                 let adder = newAdder(1, 2);
                 adder(8);
                 ",
-                Constant::Int(11),
+                Constant::Num(11f64),
             ),
             T(
                 "let newAdder = fn(a, b) {
@@ -907,7 +908,7 @@ mod tests {
                 };
                 let adder = newAdder(1, 2);
                 adder(8);",
-                Constant::Int(11),
+                Constant::Num(11f64),
             ),
             T(
                 "
@@ -922,7 +923,7 @@ mod tests {
                 let adder = newAdderInner(3);
                 adder(8);
                 ",
-                Constant::Int(14),
+                Constant::Num(14f64),
             ),
             T(
                 "
@@ -936,7 +937,7 @@ mod tests {
                 let adder = newAdderInner(3);
                 adder(8);
                 ",
-                Constant::Int(14),
+                Constant::Num(14f64),
             ),
             T(
                 "
@@ -948,7 +949,7 @@ mod tests {
                 let closure = newClosure(9, 90);
                 closure();
                 ",
-                Constant::Int(99),
+                Constant::Num(99f64),
             ),
         ];
         run_vm_tests(&tests);
@@ -966,7 +967,7 @@ mod tests {
                     }
                 };
                 countDown(1);",
-                Constant::Int(0),
+                Constant::Num(0f64),
             ),
             T(
                 "
@@ -982,7 +983,7 @@ mod tests {
                    };
                    wrapper();
                    ",
-                Constant::Int(0),
+                Constant::Num(0f64),
             ),
             T(
                 "
@@ -998,7 +999,7 @@ mod tests {
                    };
                    wrapper();
                    ",
-                Constant::Int(0),
+                Constant::Num(0f64),
             ),
         ];
         run_vm_tests(&tests);
@@ -1011,7 +1012,7 @@ mod tests {
             let prog = parser.parse_program().unwrap();
             let compiler = Compiler::default();
             let bytecode = compiler.compile_program(&prog).unwrap();
-            let mut globals = vec![Constant::Int(0); GLOBALS_SIZE];
+            let mut globals = vec![Constant::Num(0f64); GLOBALS_SIZE];
             let vm = Vm::for_bytecode(bytecode, &mut globals);
             let (stack_top, _) = vm.run().unwrap();
             assert_eq!(

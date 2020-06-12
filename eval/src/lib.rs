@@ -4,7 +4,7 @@ use object::*;
 use sema::{NameResolution, VarResolution};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::convert::TryInto;
+use std::convert::{TryInto};
 use std::rc::Rc;
 use string_interner::Sym;
 
@@ -51,7 +51,7 @@ impl<'a> Interpreter<'a> {
         // The base pointer here means nothing, it will never be used.
         obj.frames[0] = Frame { name: "main", base_pointer: 0 };
         // the stack is only used by functions
-        obj.stack.resize_with(STACK_SIZE, || Object::Int(0));
+        obj.stack.resize_with(STACK_SIZE, || Object::Num(0.0));
 
         fn len<'a>(args: &[Value<'a>]) -> Result<Value<'a>, String> {
             if args.len() != 1 {
@@ -62,8 +62,8 @@ impl<'a> Interpreter<'a> {
                 ))
             } else {
                 match &args[0] {
-                    Object::Str(s) => Ok(Object::Int(s.len() as i64)),
-                    Object::Array(a) => Ok(Object::Int(a.len() as i64)),
+                    Object::Str(s) => Ok(Object::Num(s.len() as f64)),
+                    Object::Array(a) => Ok(Object::Num(a.len() as f64)),
                     _other => Err("len: invalid argument, expected STRING".to_string()),
                 }
             }
@@ -163,7 +163,7 @@ impl<'a> Interpreter<'a> {
         env: Rc<RefCell<Env<'a>>>,
     ) -> Result<Value<'a>, String> {
         match &expr_nodes[expr] {
-            Node::Int { value, .. } => Ok(Object::Int(*value)),
+            Node::Num { value, .. } => Ok(Object::Num(*value)),
             Node::Str { value, .. } => Ok(Object::Str(Rc::new((*value).to_string()))),
             Node::Boolean { value, .. } => {
                 if *value {
@@ -228,7 +228,11 @@ impl<'a> Interpreter<'a> {
                 let index = self.eval_expression(*index, stmt_nodes, expr_nodes, env)?;
                 let index_type = index.type_name();
                 match (array, index) {
-                    (Object::Array(v), Object::Int(i)) => {
+                    (Object::Array(v), Object::Num(i)) => {
+                        if i.fract() != 0.0 {
+                            return Err(format!("invalid index value: {}", i));
+                        }
+                        let i = i as i64;
                         if i < 0 {
                             Ok(self.nil.clone())
                         } else {
@@ -353,8 +357,8 @@ impl<'a> Interpreter<'a> {
     }
 
     fn eval_minus_prefix_operator_expression(&self, obj: Value<'a>) -> Result<Value<'a>, String> {
-        if let Object::Int(v) = obj {
-            Ok(Object::Int(-v))
+        if let Object::Num(v) = obj {
+            Ok(Object::Num(-v))
         } else {
             Err(format!("unknown operator: -{}", obj.type_name()))
         }
@@ -364,8 +368,8 @@ impl<'a> Interpreter<'a> {
         &self, operator: &str, lhs: Value<'a>, rhs: Value<'a>,
     ) -> Result<Value<'a>, String> {
         match (lhs, rhs) {
-            (Object::Int(v1), Object::Int(v2)) => {
-                self.eval_integer_infix_expression(operator, v1, v2)
+            (Object::Num(v1), Object::Num(v2)) => {
+                self.eval_number_infix_expression(operator, v1, v2)
             }
             (Object::Str(s1), Object::Str(s2)) if operator == "==" => Ok(if s1 == s2 {
                 self.pos.clone()
@@ -389,7 +393,7 @@ impl<'a> Interpreter<'a> {
             (Object::False, Object::False) => {
                 self.eval_boolean_infix_expression(operator, false, false)
             }
-            (a @ Object::Int(_), b) | (a, b @ Object::Int(_)) => Err(format!(
+            (a @ Object::Num(_), b) | (a, b @ Object::Num(_)) => Err(format!(
                 "type mismatch: {} {} {}",
                 a.type_name(),
                 operator,
@@ -404,20 +408,20 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn eval_integer_infix_expression(
-        &self, operator: &str, v1: i64, v2: i64,
+    fn eval_number_infix_expression(
+        &self, operator: &str, v1: f64, v2: f64,
     ) -> Result<Value<'a>, String> {
         match operator {
-            "+" => Ok(Object::Int(v1 + v2)),
-            "-" => Ok(Object::Int(v1 - v2)),
-            "*" => Ok(Object::Int(v1 * v2)),
-            "/" => Ok(Object::Int(v1 / v2)),
+            "+" => Ok(Object::Num(v1 + v2)),
+            "-" => Ok(Object::Num(v1 - v2)),
+            "*" => Ok(Object::Num(v1 * v2)),
+            "/" => Ok(Object::Num(v1 / v2)),
             ">" => Ok(if v1 > v2 {
                 self.pos.clone()
             } else {
                 self.neg.clone()
             }),
-            "^" => Ok(Object::Int(v1.pow(v2.try_into().unwrap()))),
+            "^" => Ok(Object::Num(v1.powf(v2.try_into().unwrap()))),
             "<" => Ok(if v1 < v2 {
                 self.pos.clone()
             } else {
@@ -433,7 +437,7 @@ impl<'a> Interpreter<'a> {
             } else {
                 self.neg.clone()
             }),
-            other => Err(format!("unknown operator: INTEGER {} INTEGER", other)),
+            other => Err(format!("unknown operator: NUMBER {} NUMBER", other)),
         }
     }
 
@@ -488,9 +492,9 @@ mod tests {
         }
     }
 
-    fn test_integer_object(obj: &Object, expected: i64) {
+    fn test_number_object(obj: &Object, expected: f64) {
         assert!(
-            matches!(obj, Object::Int(v) if v == &expected),
+            matches!(obj, Object::Num(v) if v == &expected),
             "expected: {}, got object: {}",
             expected,
             obj.type_name(),
@@ -508,30 +512,30 @@ mod tests {
     }
 
     #[test]
-    fn eval_integer_expression_works() {
-        struct Test(&'static str, i64);
+    fn eval_number_expression_works() {
+        struct Test(&'static str, f64);
         let t = Test;
 
         let tests = [
-            t("5;", 5),
-            t("10;", 10),
-            t("-5;", -5),
-            t("-10;", -10),
-            t("5 + 5 + 5 + 5 - 10;", 10),
-            t("2 * 2 * 2 * 2 * 2;", 32),
-            t("-50 + 100 + -50;", 0),
-            t("5 * 2 + 10;", 20),
-            t("5 + 2 * 10;", 25),
-            t("20 + 2 * -10;", 0),
-            t("50 / 2 * 2 + 10;", 60),
-            t("2 * (5 + 10);", 30),
-            t("3 * 3 * 3 + 10;", 37),
-            t("3 * (3 * 3) + 10;", 37),
-            t("(5 + 10 * 2 + 15 / 3) * 2 + -10;", 50),
+            t("5;", 5.0),
+            t("10;", 10.0),
+            t("-5;", -5.0),
+            t("-10;", -10.0),
+            t("5 + 5 + 5 + 5 - 10;", 10.0),
+            t("2 * 2 * 2 * 2 * 2;", 32.0),
+            t("-50 + 100 + -50;", 0.0),
+            t("5 * 2 + 10;", 20.0),
+            t("5 + 2 * 10;", 25.0),
+            t("20 + 2 * -10;", 0.0),
+            t("50 / 2 * 2 + 10;", 60.0),
+            t("2 * (5 + 10);", 30.0),
+            t("3 * 3 * 3 + 10;", 37.0),
+            t("3 * (3 * 3) + 10;", 37.0),
+            t("(5 + 10 * 2 + 15 / 3) * 2 + -10;", 50.0),
         ];
         for (_, t) in tests.iter().enumerate() {
             let result = test_eval(t.0);
-            test_integer_object(&result, t.1);
+            test_number_object(&result, t.1);
         }
     }
 
@@ -586,23 +590,23 @@ mod tests {
 
     #[test]
     fn eval_if_else_expression_works() {
-        struct Test(&'static str, Option<i64>);
+        struct Test(&'static str, Option<f64>);
         let t = Test;
 
         let tests = [
-            t("if (true) { 10 };", Some(10)),
+            t("if (true) { 10 };", Some(10.0)),
             t("if (false) { 10 };", None),
-            t("if (1) { 10 };", Some(10)),
-            t("if (1 < 2) { 10 };", Some(10)),
+            t("if (1) { 10 };", Some(10.0)),
+            t("if (1 < 2) { 10 };", Some(10.0)),
             t("if (1 > 2) { 10 };", None),
-            t("if (1 > 2) { 10 } else { 20 };", Some(20)),
-            t("if (1 < 2) { 10 } else { 20 };", Some(10)),
+            t("if (1 > 2) { 10 } else { 20 };", Some(20.0)),
+            t("if (1 < 2) { 10 } else { 20 };", Some(10.0)),
         ];
 
         for (_, test) in tests.iter().enumerate() {
             let result = test_eval(test.0);
             if let Some(expected) = test.1 {
-                assert!(matches!(result, Object::Int(v) if v == expected));
+                assert!(matches!(result, Object::Num(v) if v == expected));
             } else {
                 assert!(matches!(result, Object::Null));
             }
@@ -611,14 +615,14 @@ mod tests {
 
     #[test]
     fn eval_return_expression_works() {
-        struct Test(&'static str, Option<i64>);
+        struct Test(&'static str, Option<f64>);
         let t = Test;
 
         let tests = [
-            t("fn() { return 10; } ();", Some(10)),
-            t("fn() { return 10; 9; }();", Some(10)),
-            t("fn() { return 2 * 5; 9; }();", Some(10)),
-            t("fn() { 9; return 2 * 5; 0; } ();", Some(10)),
+            t("fn() { return 10; } ();", Some(10.0)),
+            t("fn() { return 10; 9; }();", Some(10.0)),
+            t("fn() { return 2 * 5; 9; }();", Some(10.0)),
+            t("fn() { 9; return 2 * 5; 0; } ();", Some(10.0)),
             t("fn() {10; return; return 20 + 2; }();", None),
             t(
                 "fn() {
@@ -628,14 +632,14 @@ mod tests {
                 };
                 return 1;
               }}();",
-                Some(10),
+                Some(10.0),
             ),
         ];
 
         for (_, test) in tests.iter().enumerate() {
             let result = test_eval(test.0);
             if let Some(expected) = test.1 {
-                test_integer_object(&result, expected);
+                test_number_object(&result, expected);
             } else {
                 assert!(matches!(result, Object::Null));
             }
@@ -648,8 +652,8 @@ mod tests {
         let t = Test;
 
         let tests = [
-            t("5 + true;", "type mismatch: INTEGER + BOOLEAN"),
-            t("5 + true; 5;", "type mismatch: INTEGER + BOOLEAN"),
+            t("5 + true;", "type mismatch: NUMBER + BOOLEAN"),
+            t("5 + true; 5;", "type mismatch: NUMBER + BOOLEAN"),
             t("-true;", "unknown operator: -BOOLEAN"),
             t("true + false;", "unknown operator: BOOLEAN + BOOLEAN"),
             t("5; true + false; 5;", "unknown operator: BOOLEAN + BOOLEAN"),
@@ -682,39 +686,39 @@ mod tests {
 
     #[test]
     fn eval_let_statement_works() {
-        struct Test(&'static str, i64);
+        struct Test(&'static str, f64);
         let t = Test;
 
         let tests = [
-            t("let a = 5; a;", 5),
-            t("let a = 5 * 5; a;", 25),
-            t("let a = 5; let b = a; b;", 5),
-            t("let a = 5; let b = a; let c = a + b + 5; c;", 15),
+            t("let a = 5; a;", 5.0),
+            t("let a = 5 * 5; a;", 25.0),
+            t("let a = 5; let b = a; b;", 5.0),
+            t("let a = 5; let b = a; let c = a + b + 5; c;", 15.0),
         ];
 
         for (_, test) in tests.iter().enumerate() {
-            test_integer_object(&test_eval(test.0), test.1);
+            test_number_object(&test_eval(test.0), test.1);
         }
     }
 
     #[test]
     fn eval_function_application_works() {
-        struct Test(&'static str, i64);
+        struct Test(&'static str, f64);
         let t = Test;
 
         let tests = [
-            t("let identity = fn(x) { return x; }; identity(5);", 5),
-            t("let double = fn(x) { return x * 2; }; double(5);", 10),
-            t("let add = fn(x, y) { return x + y; }; add(5, 5);", 10),
+            t("let identity = fn(x) { return x; }; identity(5);", 5.0),
+            t("let double = fn(x) { return x * 2; }; double(5);", 10.0),
+            t("let add = fn(x, y) { return x + y; }; add(5, 5);", 10.0),
             t(
                 "let add = fn(x, y) { return x + y; }; add(5 + 5, add(5, 5));",
-                20,
+                20.0,
             ),
-            t("fn(x) { return x; }(5);", 5),
+            t("fn(x) { return x; }(5);", 5.0),
         ];
 
         for (_, test) in tests.iter().enumerate() {
-            test_integer_object(&test_eval(test.0), test.1);
+            test_number_object(&test_eval(test.0), test.1);
         }
     }
 
@@ -732,6 +736,6 @@ mod tests {
             fib(33);
         ";
 
-        test_integer_object(&test_eval(input), 3_524_578);
+        test_number_object(&test_eval(input), 3_524_578f64);
     }
 }

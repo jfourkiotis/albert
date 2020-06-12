@@ -90,7 +90,7 @@ fn start_tw(input: Option<PathBuf>, show_elapsed_time: bool) -> Result<(), Box<d
 }
 
 fn start_vm(input: Option<PathBuf>, show_elapsed_time: bool) -> Result<(), Box<dyn Error>> {
-    let mut globals = vec![Constant::Int(0); GLOBALS_SIZE];
+    let mut globals = vec![Constant::Num(0f64); GLOBALS_SIZE];
     if let Some(path) = input {
         exec_script(path, show_elapsed_time, move |p, r, s| {
             run_vm_backend(p, r, s, &mut globals)
