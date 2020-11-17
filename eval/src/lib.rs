@@ -4,7 +4,7 @@ use object::*;
 use sema::{NameResolution, VarResolution};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::convert::{TryInto};
+use std::convert::TryInto;
 use std::rc::Rc;
 use string_interner::Sym;
 
@@ -47,9 +47,15 @@ impl<'a> Interpreter<'a> {
         };
 
         // Only functions use frames, but we add a dummy frame for the main script file
-        obj.frames.resize_with(MAX_FRAMES, || Frame { name: "", base_pointer: 0 });
+        obj.frames.resize_with(MAX_FRAMES, || Frame {
+            name: "",
+            base_pointer: 0,
+        });
         // The base pointer here means nothing, it will never be used.
-        obj.frames[0] = Frame { name: "main", base_pointer: 0 };
+        obj.frames[0] = Frame {
+            name: "main",
+            base_pointer: 0,
+        };
         // the stack is only used by functions
         obj.stack.resize_with(STACK_SIZE, || Object::Num(0.0));
 
@@ -76,13 +82,19 @@ impl<'a> Interpreter<'a> {
     pub fn eval_program(
         &mut self, prog: &Program<'a>, env: Rc<RefCell<Env<'a>>>,
     ) -> Result<Value<'a>, RuntimeError> {
-         match self.eval_statements(&prog.statements, &prog.stmt_nodes, &prog.expr_nodes, env) {
-             Err(message) => {
-                 let stacktrace = self.frames[..=self.frame_index].iter().map(|f| f.name.to_string()).collect::<Vec<String>>();
-                 Err(RuntimeError { message, stacktrace })
-             },
-             Ok(r) => Ok(r)
-         }
+        match self.eval_statements(&prog.statements, &prog.stmt_nodes, &prog.expr_nodes, env) {
+            Err(message) => {
+                let stacktrace = self.frames[..=self.frame_index]
+                    .iter()
+                    .map(|f| f.name.to_string())
+                    .collect::<Vec<String>>();
+                Err(RuntimeError {
+                    message,
+                    stacktrace,
+                })
+            }
+            Ok(r) => Ok(r),
+        }
     }
 
     fn eval_statements(
@@ -177,12 +189,11 @@ impl<'a> Interpreter<'a> {
                     if depth == 0 {
                         Ok(self.stack[self.frames[self.frame_index].base_pointer + index].clone())
                     } else {
-                        env
-                            .borrow()
+                        env.borrow()
                             .get_local((depth, index))
                             .ok_or_else(|| format!("unknown identifier: {}", value))
                     }
-                },
+                }
                 NameResolution::Global { symbol } => self.eval_identifier(symbol, value, env),
                 NameResolution::Unresolved => panic!("unresolved variable {}", value),
             },
@@ -260,7 +271,10 @@ impl<'a> Interpreter<'a> {
                 match func {
                     Object::Func(fdef) => {
                         if let Node::Func {
-                            parameters, body, name, ..
+                            parameters,
+                            body,
+                            name,
+                            ..
                         } = &expr_nodes[fdef.0]
                         {
                             if arguments.len() != parameters.len() {
@@ -270,13 +284,14 @@ impl<'a> Interpreter<'a> {
                                     arguments.len()
                                 ))
                             } else {
-                                let args =
-                                    self.eval_expressions(arguments, stmt_nodes, expr_nodes, env)?;
-                                let num_args = args.len();
-                                self.stack[self.sp..self.sp + num_args].clone_from_slice(&args);
-                                self.sp += num_args;
+                                let num_args = self.eval_expressions_fast(
+                                    arguments, stmt_nodes, expr_nodes, env,
+                                )?;
                                 self.frame_index += 1;
-                                self.frames[self.frame_index] = Frame { name, base_pointer: self.sp - num_args };
+                                self.frames[self.frame_index] = Frame {
+                                    name,
+                                    base_pointer: self.sp - num_args,
+                                };
                                 let result = self.eval_statement(
                                     *body,
                                     stmt_nodes,
@@ -314,6 +329,18 @@ impl<'a> Interpreter<'a> {
             objects.push(self.eval_expression(*expr, stmt_nodes, expr_nodes, env.clone())?);
         }
         Ok(objects)
+    }
+
+    fn eval_expressions_fast(
+        &mut self, args: &[ExprId], stmt_nodes: &[Statement], expr_nodes: &[Node<'a>],
+        env: Rc<RefCell<Env<'a>>>,
+    ) -> Result<usize, String> {
+        for expr in args.iter() {
+            self.stack[self.sp] =
+                self.eval_expression(*expr, stmt_nodes, expr_nodes, env.clone())?;
+            self.sp += 1;
+        }
+        Ok(args.len())
     }
 
     fn eval_identifier(
@@ -677,7 +704,12 @@ mod tests {
 
         for (_, test) in tests.iter().enumerate() {
             if let Err(e) = test_eval_or_error(test.0) {
-                assert!(&e.message == test.1, "expected: '{}', got: '{}'", test.1, e.message);
+                assert!(
+                    &e.message == test.1,
+                    "expected: '{}', got: '{}'",
+                    test.1,
+                    e.message
+                );
             } else {
                 panic!("error expected!");
             }
