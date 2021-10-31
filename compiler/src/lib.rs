@@ -153,7 +153,6 @@ impl<'a> Default for Compiler<'a> {
     }
 }
 
-#[macro_use]
 macro_rules! current_scope {
     ($compiler:ident) => {
         $compiler.scopes[$compiler.scope_index]
@@ -169,7 +168,7 @@ impl<'a> Compiler<'a> {
         mut self, statements: &[StmtId], stmt_nodes: &[Statement], expr_nodes: &'a [Node],
     ) -> Result<Bytecode, String> {
         for (_, stmt) in statements.iter().enumerate() {
-            self.compile_statement(*stmt, &stmt_nodes, &expr_nodes)?;
+            self.compile_statement(*stmt, stmt_nodes, expr_nodes)?;
         }
 
         let top_scope = self.scopes.remove(0);
@@ -200,7 +199,7 @@ impl<'a> Compiler<'a> {
             }
             Statement::Block { statements, .. } => {
                 for (_, stmt) in statements.iter().enumerate() {
-                    self.compile_statement(*stmt, &stmt_nodes, &expr_nodes)?;
+                    self.compile_statement(*stmt, stmt_nodes, expr_nodes)?;
                 }
                 Ok(())
             }
@@ -437,7 +436,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn emit(&mut self, op: OpCode, operands: &[usize]) -> Result<usize, String> {
-        let ins = make_instruction(op, &operands)?;
+        let ins = make_instruction(op, operands)?;
         let pos = self.add_instruction(ins);
         self.set_last_instruction(op, pos);
         Ok(pos)

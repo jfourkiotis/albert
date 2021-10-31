@@ -4,7 +4,6 @@ use object::*;
 use sema::{NameResolution, VarResolution};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::rc::Rc;
 use string_interner::Sym;
 
@@ -103,7 +102,7 @@ impl<'a> Interpreter<'a> {
     ) -> Result<Value<'a>, String> {
         let mut result = self.nil.clone();
         for (_, stmt) in statements.iter().enumerate() {
-            let ret = self.eval_statement(*stmt, &stmt_nodes, &expr_nodes, env.clone())?;
+            let ret = self.eval_statement(*stmt, stmt_nodes, expr_nodes, env.clone())?;
             if let Object::Return = ret {
                 return Ok(self.rax.take().map_or(self.nil.clone(), |r| r));
             } else {
@@ -126,7 +125,7 @@ impl<'a> Interpreter<'a> {
                 }
             }
             Statement::Block { statements, .. } => {
-                self.eval_block_statements(&statements, stmt_nodes, expr_nodes, env)
+                self.eval_block_statements(statements, stmt_nodes, expr_nodes, env)
             }
             Statement::Return { return_value, .. } => {
                 if let Some(rv) = return_value {
@@ -160,7 +159,7 @@ impl<'a> Interpreter<'a> {
     ) -> Result<Value<'a>, String> {
         let mut result = self.nil.clone();
         for (_, stmt) in statements.iter().enumerate() {
-            let ret = self.eval_statement(*stmt, &stmt_nodes, &expr_nodes, env.clone())?;
+            let ret = self.eval_statement(*stmt, stmt_nodes, expr_nodes, env.clone())?;
             if let Object::Return = ret {
                 return Ok(ret);
             } else {
@@ -448,18 +447,18 @@ impl<'a> Interpreter<'a> {
             } else {
                 self.neg.clone()
             }),
-            "^" => Ok(Object::Num(v1.powf(v2.try_into().unwrap()))),
+            "^" => Ok(Object::Num(v1.powf(v2))),
             "<" => Ok(if v1 < v2 {
                 self.pos.clone()
             } else {
                 self.neg.clone()
             }),
-            "==" => Ok(if v1 == v2 {
+            "==" => Ok(if (v1 - v2).abs() < f64::EPSILON {
                 self.pos.clone()
             } else {
                 self.neg.clone()
             }),
-            "!=" => Ok(if v1 != v2 {
+            "!=" => Ok(if (v1 - v2).abs() > f64::EPSILON {
                 self.pos.clone()
             } else {
                 self.neg.clone()

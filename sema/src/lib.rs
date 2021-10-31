@@ -78,7 +78,7 @@ impl<'a> Resolver<'a> {
                 }
             }
             Statement::Block { statements, .. } => {
-                self.resolve_block_statements(&statements, stmt_nodes, expr_nodes)?;
+                self.resolve_block_statements(statements, stmt_nodes, expr_nodes)?;
             }
             Statement::Let {
                 name,

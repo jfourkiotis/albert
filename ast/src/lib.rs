@@ -260,19 +260,19 @@ impl<'a> Program<'a> {
                 ref token,
                 name,
                 value,
-            } => self.fmt_let_statement(&token.literal, *name, *value, f)?,
+            } => self.fmt_let_statement(token.literal, *name, *value, f)?,
             Statement::Return {
                 ref token,
                 return_value,
-            } => self.fmt_return_statement(&token.literal, return_value, f)?,
+            } => self.fmt_return_statement(token.literal, return_value, f)?,
             Statement::Expression {
                 ref token,
                 expression,
-            } => self.fmt_expression_statement(&token.literal, expression, f)?,
+            } => self.fmt_expression_statement(token.literal, expression, f)?,
             Statement::Block {
                 ref token,
                 statements,
-            } => self.fmt_block(&token.literal, statements, f)?,
+            } => self.fmt_block(token.literal, statements, f)?,
         }
 
         Ok(())

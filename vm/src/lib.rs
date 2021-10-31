@@ -30,7 +30,6 @@ pub struct Vm<'a> {
     frame_index: usize,
 }
 
-#[macro_use]
 macro_rules! pop {
     ($a:expr) => {{
         let top = $a.stack[$a.sp - 1];
@@ -39,7 +38,6 @@ macro_rules! pop {
     }};
 }
 
-#[macro_use]
 macro_rules! push {
     ($a:expr, $v:expr) => {{
         $a.stack[$a.sp] = $v;
@@ -47,35 +45,30 @@ macro_rules! push {
     }};
 }
 
-#[macro_use]
 macro_rules! raise_operator_error {
     ($a:expr, $o:expr, $b:expr) => {
         return Err(format!("unknown operator: {}{}{}", $a, $o, $b,));
     };
 }
 
-#[macro_use]
 macro_rules! current_frame {
     ($f:ident) => {
         $f.frames[$f.frame_index]
     };
 }
 
-#[macro_use]
 macro_rules! current_ip {
     ($f: ident) => {
         current_frame!($f).ip
     };
 }
 
-#[macro_use]
 macro_rules! current_instructions {
     ($f: ident) => {
         $f.functions[$f.closures[current_frame!($f).ci].cfunc].instructions
     };
 }
 
-#[macro_use]
 macro_rules! remaining_instructions {
     ($f: ident) => {
         current_instructions!($f)[current_ip!($f)..]
@@ -233,7 +226,7 @@ impl<'a> Vm<'a> {
                     let left = pop!(self);
                     match (left, right) {
                         (Constant::Num(v1), Constant::Num(v2)) => {
-                            push!(self, Constant::Num(v1.powf(v2.try_into().unwrap())));
+                            push!(self, Constant::Num(v1.powf(v2)));
                         }
                         (a, b) => raise_operator_error!(a.type_name(), "^", b.type_name()),
                     }
